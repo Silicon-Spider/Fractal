@@ -27,7 +27,7 @@ The spec lists the modules, the 64 test files, the harness, the rulebook and t0d
 ## Not copied
 
 - Anything in spec §3.2: expand, labels, views, mcts, mcts_evaluators, selfplay, capi_search, scanner, guard, hunt, prover, ladder and assets.
-- The harness's five oracle submodules (the `oracles/third_party/*` gitlinks) and Temporal-5D's `.gitmodules`. Fractal has no submodules and fetches no oracle code (NS2, NF10, NF12).
+- The harness's five oracle submodules (the `oracles/third_party/*` gitlinks) and Temporal-5D's `.gitmodules`, at the copy. Since G0's ruling 1 Fractal declares the same five itself, at the commits `oracles/oracles.lock.toml` locks: test fixtures, checked out by `python oracles/harness.py sync`, that the engine's build never reads (NS2, NF10, NF12; `docs/gates/G1a-rules-review.md`).
 - Temporal-5D's other tools (`t5d-measure`, `t5d-bench`, `t5d-play` and the rest), `engine/testdata/`, `engine/build.py`, `engine/CMakeLists.txt` and `engine/cmake/`. Fractal has its own build (`CMakeLists.txt`).
 - Temporal-5D's `PROVENANCE.md`. The copied harness generated the inventory block at the end of this file in Fractal (`python oracles/harness.py provenance --write`).
 
