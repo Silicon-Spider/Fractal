@@ -66,6 +66,7 @@ Recorded in `docs/gates/G1a-rules-review.md`, with the tests and measurements be
 | File | Change | SHA-256 now, below the header |
 | --- | --- | --- |
 | `engine/tests/test_search.cpp` | Recovered (spec §3.6): the include of `t5d/expand.hpp` and the second half of `search_legal_moves_are_those_that_begin_a_legal_action_r1`, which calls the uncopied expansion, are removed. The other 21 tests and that test's first half are as copied. 34 lines removed. | `0f6e08c3767e35fdc8f962ceb52bf943a375535f521a4606ce96e04b2d718d7a` |
+| `engine/src/check.cpp` | Adds the set scan: `royal_capture_exists` and `in_check` are answered board by board from bitboards under the default readings of Q18 and Q19, and `in_check` reads the passed boards in place instead of building a multiverse. The copied line scan is unchanged and still answers every other entry point, and both of those under the alternatives. 362 lines added, 2 removed. | `c168c210914e851306f17a3b1938d02a676038914cd0f4c6558407f450d665f0` |
 
 ## Fractal's own files
 
