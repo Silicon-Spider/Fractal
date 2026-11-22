@@ -2,7 +2,7 @@
 //   source: engine/src/hypercuboid.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
 //   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  changed: construction reads each candidate's changes from move_edits instead of applying it to a copy (spec 3.3 item 6); see PROVENANCE.md
+//   state:  changed: construction reads each candidate's changes from move_edits instead of applying it to a copy; two allocations a turn removed (spec 3.3 item 6); see PROVENANCE.md
 // The hypercuboid detector (see t5d/search.hpp). Its design is the engine
 // README's "The hypercuboid detector: design", implemented from that note.
 //
@@ -1271,10 +1271,13 @@ class Hyper {
     bool stopped = false;
     trail_.clear();
     seeking_ = resume;
+    // By reference, so that the realisation's function object holds a pointer
+    // and allocates nothing.
+    const Visit visiting = std::ref(visit);
     switch (regime_) {
-      case Regime::Ordered: realise_ordered(x, visit, stopped); break;
-      case Regime::FreeOrder: realise_free(x, visit, stopped); break;
-      case Regime::General: realise_general(x, visit, stopped); break;
+      case Regime::Ordered: realise_ordered(x, visiting, stopped); break;
+      case Regime::FreeOrder: realise_free(x, visiting, stopped); break;
+      case Regime::General: realise_general(x, visiting, stopped); break;
     }
     const bool lost = seeking_;
     seeking_ = false;
@@ -1312,6 +1315,9 @@ class Hyper {
   bool j6_cycle_region(const std::vector<int>& x, Region& region) const {
     const std::size_t k = axes_.size();
     for (std::size_t i = 0; i < k; ++i) {
+      // No cycle starts on an axis that makes no J6 branch (the walk below
+      // would end at once).
+      if (value_of(x, i).kind != Kind::Branch || value_of(x, i).partner < 0) continue;
       std::vector<std::size_t> cycle{i};
       std::size_t at = i;
       bool closed = false;
