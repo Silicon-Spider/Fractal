@@ -7,7 +7,8 @@
 - Lists every bracketed or bare ID the spec cites that has no row in the register,
   and every register row the spec never cites.
 - Lists Spec-column section references (such as 7.3) that name no heading in the spec.
-- Checks that every relative link and image in the docs resolves.
+- Checks that every relative link and image resolves, in every Markdown file at the
+  root, in docs/ and in docs/gates/.
 
 It needs nothing but the repository.
 Usage: python tools/check_docs.py [--root DIR]
@@ -135,11 +136,12 @@ def main() -> int:
                 problems.append(f"{doc} refers to §{m.group(1)}, which is not a heading of the spec")
 
     # ---- links and images ----------------------------------------------------------
-    for name in ("docs/SPEC.md", "docs/DECISIONS.md", "docs/BUILD_PROMPT.md", "README.md", "docs/gates/G0.md",
-                 "docs/gates/G0-rulings.md", "docs/MEASUREMENTS.md"):
-        path = repo / name
-        if not path.is_file():
-            continue
+    # Every Markdown file of Fractal's own: the root's, docs/ and the gate reports (a new
+    # report is checked without being listed here). The copied rulebook under docs/rules
+    # is not Fractal's to check.
+    documents = sorted(p for pattern in ("*.md", "docs/*.md", "docs/gates/*.md") for p in repo.glob(pattern))
+    for path in documents:
+        name = path.relative_to(repo).as_posix()
         for m in re.finditer(r"\]\(([^)#\s]+)(?:#[^)]*)?\)", path.read_text(encoding="utf-8")):
             target = m.group(1)
             if re.match(r"[a-z]+://", target) or target.startswith("mailto:"):

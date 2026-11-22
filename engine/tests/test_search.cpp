@@ -2,7 +2,7 @@
 //   source: engine/tests/test_search.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
 //   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  unchanged: below this header the file is byte for byte the source
+//   state:  changed: the one case that calls the uncopied expansion is trimmed (spec 3.6); see PROVENANCE.md
 // Legal actions, their count, and mate detection (rulebook C5, C8, C9, C13,
 // ruling R1; register H37). Every position is written here from the rulebook -
 // never taken from a game corpus or another implementation's test data - and
@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "t5d/check.hpp"
-#include "t5d/expand.hpp"
 #include "t5d/fen.hpp"
 #include "t5d/legal.hpp"
 #include "t5d/movegen.hpp"
@@ -657,38 +656,6 @@ TEST(search_legal_moves_are_those_that_begin_a_legal_action_r1) {
     CHECK_EQ(all.size(), std::size_t{6});
     CHECK(legal == all);
   }
-  // The expansion's switch (ExpandOptions::legal_moves) offers the same.
-  ExpandOptions o;
-  Expansion x;
-  expand(rewind_escape(), o, x);
-  const std::size_t pseudo = x.move_records().size();
-  o.legal_moves = true;
-  expand(rewind_escape(), o, x);
-  CHECK_EQ(x.move_records().size(), std::size_t{4});
-  CHECK(pseudo > 4);
-  REQUIRE_EQ(x.move_legality().size(), std::size_t{4});
-  for (const MoveLegality l : x.move_legality()) CHECK(l == MoveLegality::Legal);
-  // Under a budget (t5d/legal.hpp): the moves proved illegal dropped, the
-  // undecided kept and marked Unknown - never a legal move dropped, never an
-  // illegal one called legal.
-  MoveList legal;
-  legal_moves(rewind_escape(), legal);
-  for (const LegalityOptions& budget : {LegalityOptions::budgeted(0, 0), LegalityOptions::budgeted(1, 10)}) {
-    o.legality = budget;
-    expand(rewind_escape(), o, x);
-    REQUIRE_EQ(x.move_legality().size(), x.moves().size());
-    CHECK(x.moves().size() >= 4);
-    CHECK(x.moves().size() <= pseudo);
-    for (const Move& m : legal) CHECK(std::find(x.moves().begin(), x.moves().end(), m) != x.moves().end());
-    for (std::size_t i = 0; i < x.moves().size(); ++i) {
-      const bool is_legal = std::find(legal.begin(), legal.end(), x.moves()[i]) != legal.end();
-      if (x.move_legality()[i] == MoveLegality::Legal) CHECK(is_legal);
-    }
-  }
-  // Pseudo-legal: no statuses.
-  o.legal_moves = false;
-  expand(rewind_escape(), o, x);
-  CHECK(x.move_legality().empty());
 }
 
 TEST(search_every_proven_verdict_is_exhaustive_h37) {

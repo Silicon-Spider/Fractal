@@ -6,8 +6,19 @@ Fractal copies Temporal-5D's rules engine once, from one pinned commit, and neve
 
 - Repository: https://github.com/Silicon-Spider/temporal-5d
 - Pinned commit: `c8a9c490bfde650466609531f8083d69513c6036`, the head of `main` when the copy was made (committed 2026-11-08 21:05 +1100).
-- The spec names 2cb107d (2026-11-02). It is an ancestor of the pin, nine commits back, and no copied file differs between the two: `git diff 2cb107d c8a9c49` over the 221 copied paths is empty.
+- **That id is no longer on any branch upstream.** Temporal-5D's history was rewritten after the copy (an author e-mail address replaced). Every commit got a new id and kept its tree, so every copied byte is the same. The headers and Fractal's documents keep the ids they were written with, and a commit's tree id is what identifies its content now (found 2026-11-17, `docs/gates/G1a-rules-review.md`).
+- The spec as first written named 2cb107d (2026-11-02). It is an ancestor of the pin, nine commits back, and no copied file differs between the two: `git diff 2cb107d c8a9c49` over the 221 copied paths is empty, and so is the same diff between their new ids.
 - Copied: 2026-11-08, 221 files. Paths, includes and the `t5d` namespace are unchanged.
+
+The three Temporal-5D commits Fractal cites, each matched to upstream's `main` by its tree on 2026-11-22:
+
+| Cited as | What it is | Its id upstream now | Its tree, under both ids |
+| --- | --- | --- | --- |
+| `c8a9c49` | The pin: 182 file headers, `tools/check_provenance.py`, the spec and the gate reports | `03eca7a28e0ee54e9c576cbec984eec9437000a4` | `ce35e1e57556add8c6cb550a1a08f9128247538a` |
+| `2cb107d` | The commit the spec first named (above; `docs/gates/G0.md`) | `d8a54d35bcb9faadd0cbe625c7fe17f72d7625ec` | `77a435ac6c847e22492389fd1c5d298226116245` |
+| `2740e66` | The commit Temporal-5D's M9 measured (`docs/MEASUREMENTS.md`, `docs/gates/G0.md`) | `b5c117635a886954ab5e6636471c24593b86a7fd` | `5e92be8a8e2a0497b7a53050cdbfe1b23384eceb` |
+
+GitHub still answers for the three old ids when asked for one directly, but no branch or tag holds them, so a new clone doesn't have them and they may be removed.
 
 ## How each file carries its provenance
 
@@ -33,7 +44,11 @@ The spec lists the modules, the 64 test files, the harness, the rulebook and t0d
 
 ## Changes since the copy
 
-One change, the one spec §3.4 allows before G0: remove capi's transformer entry points and the record types only they use. Each file's header now says it changed. The table gives the SHA-256 of the bytes below each header now.
+Each changed file's header says so in its `state:` line. The tables give the SHA-256 of the bytes below each header now; `python tools/check_provenance.py --hash PATH` prints it.
+
+### Before G0
+
+One change, the one spec §3.4 allows before G0: remove capi's transformer entry points and the record types only they use.
 
 | File | Change | SHA-256 now, below the header |
 | --- | --- | --- |
@@ -44,11 +59,27 @@ One change, the one spec §3.4 allows before G0: remove capi's transformer entry
 
 Kept on purpose, so that no retained function changes: the game handle's `expansion_current` flag and the three writes to it in `t5d_game_apply` (through `apply_to`), `t5d_game_replay_next` and `t5d_game_submit`. Nothing reads it any more. Comments that still mention the expansion are left as they were; `docs/gates/G0.md` lists them.
 
+### Phase 1, part a
+
+Recorded in `docs/gates/G1a-rules-review.md`, with the tests and measurements behind each. None of them changes an answer: the pins of `tests/test_legality.cpp` and the detector hash of `engine/tests/test_detectors.cpp` are as they were on the engine as copied.
+
+| File | Change | SHA-256 now, below the header |
+| --- | --- | --- |
+| `engine/tests/test_search.cpp` | Recovered (spec §3.6): the include of `t5d/expand.hpp` and the second half of `search_legal_moves_are_those_that_begin_a_legal_action_r1`, which calls the uncopied expansion, are removed. The other 21 tests and that test's first half are as copied. 34 lines removed. | `0f6e08c3767e35fdc8f962ceb52bf943a375535f521a4606ce96e04b2d718d7a` |
+
+## Fractal's own files
+
+Files in directories that hold copied files, written for Fractal and not copied from anywhere. `python tools/check_provenance.py` fails on any other file there without a row in this file. A row may end in `/**` to name a whole directory.
+
+| File | What it is |
+| --- | --- |
+
 ## Licences
 
 - Temporal-5D: GPL-3.0, by the same author as Fractal (NE5).
 - t0database: MIT. The licence, `data/t0database/LICENSE`, stays with the data.
-- `oracles/drivers/ftxi/ftxi_driver.cpp` adapts code from ftxi's `tools/position_tools.cpp` under the BSD 2-Clause licence. The notice is inside the file. This conflicts with NF12; see `docs/gates/G0.md`.
+- `oracles/drivers/ftxi/ftxi_driver.cpp` adapts code from ftxi's `tools/position_tools.cpp` under the BSD 2-Clause licence. The notice is inside the file. It stays as a test-only program the engine never links (G0's ruling 2, `docs/gates/G0-rulings.md`).
+- `AGENTS.md`, `CONTRIBUTING.md` and `.github/CODEOWNERS` restate Temporal-5D's rules and procedures for the oracle harness in Fractal's terms. They are written for Fractal, not copied.
 
 ## Copied files
 
