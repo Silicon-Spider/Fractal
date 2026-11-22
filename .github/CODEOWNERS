@@ -1,0 +1,12 @@
+# The oracle harness and the workflows ask for their owner's review (spec 3.5, 3.6).
+#
+# oracles/ holds the comparison logic, the drivers, the recorded answers and their
+# hashes, the known divergences, the gate's policy and the corpus. .github/ decides
+# which checks CI runs and with which restrictions: a weaker invocation would turn CI
+# green without touching the harness. A pull request runs its own edited workflow,
+# and GitHub applies the base branch's CODEOWNERS, so both are owned here.
+#
+# This binds only once branch protection on `main` requires a review from a code
+# owner. Until then it only requests one.
+/oracles/ @Silicon-Spider
+/.github/ @Silicon-Spider

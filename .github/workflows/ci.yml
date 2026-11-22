@@ -1,7 +1,13 @@
-# CI: build the engine and run the copied tests on every push (Phase 0; NE7).
-# Every step is a plain command that runs the same way on the desktop.
-# No submodules and no oracle builds: the harness runs only the checks that need
-# no oracle engine, and the ones it can't run are listed in docs/gates/G0.md.
+# CI: build the engine and run every check on every push (NE7; spec 3.5, 3.6).
+# Every step is a plain command that runs the same way on the desktop (AGENTS.md).
+#
+# Two kinds of job:
+#   linux, windows  no submodules and no oracle builds: the engine builds and passes
+#                   its own tests alone (NS2). The harness runs only what needs no
+#                   oracle.
+#   gate            the five pinned oracle checkouts as submodules: every static check
+#                   of the harness, the copy check among them, and the gate's commit
+#                   tier, which compares the engine with an independent implementation.
 
 name: ci
 
@@ -45,36 +51,28 @@ jobs:
         run: cmake -S . -B build/engine -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DFRACTAL_WERROR=ON
       - name: Build
         run: cmake --build build/engine
-      - name: Copied tests
-        run: $PY tools/run_tests.py --exe build/engine/t5d-tests
+      - name: Copied tests, held to their inventory
+        run: $PY tools/run_tests.py --exe build/engine/t5d-tests --inventory tools/inventory/t5d-tests.tsv
+      - name: Fractal's tests of the copied code, held to their inventory
+        # The pins of the turn generator's output and of the check verdicts are here:
+        # the same on every job, or the engine is not deterministic across targets.
+        run: $PY tools/run_tests.py --exe build/engine/fractal-tests --tests-dir tests --inventory tools/inventory/fractal-tests.tsv
       - name: Provenance of the copied files
         run: $PY tools/check_provenance.py
       - name: Spec and register agree
         run: $PY tools/check_docs.py
+      - name: Legality by second routes, on every t0database turn start
+        run: |
+          $PY -I data/t0database/to_5dpgn.py build/t0db
+          build/engine/fractal-legality --records build/t0db --verify --no-pin
       - name: Near-mate bench smoke test
         run: build/engine/fractal-bench --quick --sections mate --no-pin
       - name: Harness self-test
         run: $PY oracles/harness.py selftest
-      - name: Harness static checks
-        # verify runs every static check. Without the oracle checkouts (Fractal has no
-        # submodules: NS2, NF12) three of them can't pass. This step requires exactly
-        # those findings and nothing else (docs/gates/G0.md).
-        run: |
-          set +e
-          $PY oracles/harness.py verify --tracked-only > verify.txt 2>&1
-          echo "verify exit status $?"
-          cat verify.txt
-          set -e
-          awk '/^$/{exit} {print}' verify.txt > static.txt
-          grep -E '^[a-z ]+: ' static.txt > sections.txt
-          grep -E '^  \[' static.txt | sed -E 's/^  \[([a-z-]+)\].*/\1/' | sort | uniq -c | sed -E 's/^ +//' > codes.txt
-          printf '%s\n' 'pins: 5 problem(s)' 'corpus: 37 problem(s)' 'known divergences: ok' 'rulebook: ok' 'boundary: 5 problem(s)' 'provenance: ok' 'engine baseline: ok' 'golden observations: ok' > expected-sections.txt
-          printf '%s\n' '5 copy-check-skipped' '5 missing-submodule' '37 record-unreadable' > expected-codes.txt
-          diff expected-sections.txt sections.txt
-          diff expected-codes.txt codes.txt
       - name: Gate, restricted to the four local records
         # The only gate run that reaches the engine without oracle checkouts. It is never a
         # tier verdict and exits 1 on the checkout findings; the engine's part must be clean.
+        # The gate job below runs the tier itself.
         run: |
           set +e
           $PY oracles/harness.py gate --tier commit --tracked-only --record local/stalemate --record local/checkmate --record local/stalemate-with-a-past --record local/ignores-check > gate.txt 2>&1
@@ -126,34 +124,24 @@ jobs:
         run: cmake -S . -B build/engine -G Ninja -DCMAKE_BUILD_TYPE=Release -DFRACTAL_WERROR=ON
       - name: Build
         run: cmake --build build/engine
-      - name: Copied tests
-        run: $PY tools/run_tests.py --exe build/engine/t5d-tests
+      - name: Copied tests, held to their inventory
+        run: $PY tools/run_tests.py --exe build/engine/t5d-tests --inventory tools/inventory/t5d-tests.tsv
+      - name: Fractal's tests of the copied code, held to their inventory
+        run: $PY tools/run_tests.py --exe build/engine/fractal-tests --tests-dir tests --inventory tools/inventory/fractal-tests.tsv
       - name: Provenance of the copied files
         run: $PY tools/check_provenance.py
       - name: Spec and register agree
         run: $PY tools/check_docs.py
+      - name: Legality by second routes, on every t0database turn start
+        run: |
+          $PY -I data/t0database/to_5dpgn.py build/t0db
+          build/engine/fractal-legality --records build/t0db --verify --no-pin
       - name: Near-mate bench smoke test
         run: build/engine/fractal-bench --quick --sections mate --no-pin
       - name: Harness self-test
         run: $PY oracles/harness.py selftest
-      - name: Harness static checks
-        # As on Linux: exactly the findings the missing oracle checkouts explain.
-        run: |
-          set +e
-          $PY oracles/harness.py verify --tracked-only > verify.txt 2>&1
-          echo "verify exit status $?"
-          cat verify.txt
-          set -e
-          awk '/^$/{exit} {print}' verify.txt > static.txt
-          grep -E '^[a-z ]+: ' static.txt > sections.txt
-          grep -E '^  \[' static.txt | sed -E 's/^  \[([a-z-]+)\].*/\1/' | sort | uniq -c | sed -E 's/^ +//' > codes.txt
-          printf '%s\n' 'pins: 5 problem(s)' 'corpus: 37 problem(s)' 'known divergences: ok' 'rulebook: ok' 'boundary: 5 problem(s)' 'provenance: ok' 'engine baseline: ok' 'golden observations: ok' > expected-sections.txt
-          printf '%s\n' '5 copy-check-skipped' '5 missing-submodule' '37 record-unreadable' > expected-codes.txt
-          diff expected-sections.txt sections.txt
-          diff expected-codes.txt codes.txt
       - name: Gate, restricted to the four local records
-        # The only gate run that reaches the engine without oracle checkouts. It is never a
-        # tier verdict and exits 1 on the checkout findings; the engine's part must be clean.
+        # As on Linux: never a tier verdict; the engine's part must be clean.
         run: |
           set +e
           $PY oracles/harness.py gate --tier commit --tracked-only --record local/stalemate --record local/checkmate --record local/stalemate-with-a-past --record local/ignores-check > gate.txt 2>&1
@@ -165,3 +153,72 @@ jobs:
           grep -q ': 0 declined$' gate.txt
       - name: The build wrote nothing under the harness
         run: test -z "$(git status --porcelain -- oracles/)"
+
+  gate:
+    # The gate's commit tier (spec 3.5; NR6, NM1): every static check, then the engine
+    # against the per-commit oracles over the whole corpus. The oracles are test
+    # fixtures, checked out as submodules and run as separate programs; nothing the
+    # engine builds from is among them, which the two jobs above keep proving.
+    name: gate (commit tier)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Not recursive: the oracles' own submodules are not needed, and one of them
+          # is declared with an SSH URL.
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # One per-commit oracle is a parser run under Node.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          g++ --version
+          cmake --version
+          node --version
+      - name: Static checks - pins, corpus, known divergences, rulebook, boundary, provenance, baseline, golden files
+        # With the checkouts in place nothing is excused: every section passes, the
+        # copy check against all five pinned sources among them.
+        run: python oracles/harness.py verify --tracked-only
+      # Restored and saved as separate steps, so that a build is kept even when a later
+      # step of the same run fails.
+      - name: Restore the per-commit oracle build
+        id: oracle-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: oracles/.cache/build/ftxi
+          key: oracle-commit-${{ runner.os }}-${{ hashFiles('oracles/oracles.lock.toml', 'oracles/drivers/ftxi/**', 'oracles/oracle_harness/build.py') }}
+      - name: Build the per-commit oracles
+        run: |
+          python oracles/harness.py doctor
+          python oracles/harness.py build --oracle ftxi --oracle notation
+      - name: Save the per-commit oracle build
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: oracles/.cache/build/ftxi
+          key: ${{ steps.oracle-cache.outputs.cache-primary-key }}
+      - name: Harness self-test, with the oracles it can now reach
+        run: python oracles/harness.py selftest
+      - name: Build the engine and its gate adapter
+        # Built before the gate, and checked to have changed nothing under the harness:
+        # the gate's own check only sees changes made while it runs.
+        run: |
+          cmake -S . -B build/engine -G Ninja -DCMAKE_BUILD_TYPE=Release -DFRACTAL_WERROR=ON
+          cmake --build build/engine --target t5d-gate
+          test -z "$(git status --porcelain -- oracles/)"
+      - name: Gate - commit tier
+        run: python oracles/harness.py gate --tier commit --tracked-only
+      - name: Keep the gate report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gate-commit
+          path: oracles/.cache/reports/
+          if-no-files-found: ignore
