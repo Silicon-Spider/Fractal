@@ -67,6 +67,8 @@ Recorded in `docs/gates/G1a-rules-review.md`, with the tests and measurements be
 | --- | --- | --- |
 | `engine/tests/test_search.cpp` | Recovered (spec §3.6): the include of `t5d/expand.hpp` and the second half of `search_legal_moves_are_those_that_begin_a_legal_action_r1`, which calls the uncopied expansion, are removed. The other 21 tests and that test's first half are as copied. 34 lines removed. | `0f6e08c3767e35fdc8f962ceb52bf943a375535f521a4606ce96e04b2d718d7a` |
 | `engine/src/check.cpp` | Adds the set scan: `royal_capture_exists` and `in_check` are answered board by board from bitboards under the default readings of Q18 and Q19, and `in_check` reads the passed boards in place instead of building a multiverse. The copied line scan is unchanged and still answers every other entry point, and both of those under the alternatives. 362 lines added, 2 removed. | `c168c210914e851306f17a3b1938d02a676038914cd0f4c6558407f450d665f0` |
+| `engine/src/state.cpp` | Adds `detail::move_edits`, the squares a move changes on the boards it plays, and has `GameState::apply` build its new boards from it. What `apply` checks and what it builds are unchanged. | `c12507aedea65248207f9e1b91343096625b062d2c3a3158da9e87061a16354f` |
+| `engine/src/hypercuboid.cpp` | Construction reads each candidate's changes from `move_edits` instead of applying the candidate to a copy of the turn start; a node of the budget is spent per candidate as before. | `9933c79cf63f667572c66c6b1aa2a9e48b39b84528ef05f0d419bebe7cdce5a7` |
 
 ## Fractal's own files
 
@@ -74,6 +76,7 @@ Files in directories that hold copied files, written for Fractal and not copied 
 
 | File | What it is |
 | --- | --- |
+| `engine/src/move_edits.hpp` | The internal header of `detail::move_edits`, shared by `state.cpp` and `hypercuboid.cpp`. |
 
 ## Licences
 

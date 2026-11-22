@@ -2,7 +2,7 @@
 //   source: engine/src/state.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
 //   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  unchanged: below this header the file is byte for byte the source
+//   state:  changed: apply() builds its boards from move_edits, which the turn generator reads too (spec 3.3 item 6); see PROVENANCE.md
 // The game state machine: activity, the present, move application and
 // submission (see t5d/state.hpp). Rule IDs refer to docs/rules/README.md.
 
@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 
+#include "move_edits.hpp"
 #include "t5d/board.hpp"
 #include "t5d/geometry.hpp"
 #include "t5d/timeline.hpp"
@@ -296,6 +297,51 @@ std::vector<int> GameState::playable_timelines() const {
 
 // ---- moves ----------------------------------------------------------------------------------
 
+// What apply() below puts on the boards a move plays (move_edits.hpp): Fractal's
+// addition, so that the turn generator reads a candidate's changes from the same
+// lines that make them. Each square once, the last piece put there, ascending.
+detail::MoveEdits detail::move_edits(const Move& m, const Board& src,
+                                     const RuleOptions& rules) noexcept {
+  MoveEdits e;
+  const auto put = [&e](int square, Piece piece) {
+    for (std::size_t i = 0; i < e.source_count; ++i) {
+      if (e.source[i].square == square) {
+        e.source[i].piece = piece;
+        return;
+      }
+    }
+    e.source[e.source_count++] = SquareEdit{static_cast<std::int8_t>(square), piece};
+  };
+  const Piece piece = m.piece;
+  const bool physical = m.physical();
+  // The piece that arrives: promoted, or the moving piece without its unmoved
+  // flag (Q15: unless a pawn or brawn left its board under jumps_keep_unmoved).
+  e.placed = piece.as_moved();
+  if (m.promotes()) {
+    e.placed = Piece(m.promotion, piece.colour());
+  } else if (!physical && is_pawnlike(piece.kind()) && rules.jumps_keep_unmoved) {
+    e.placed = piece;
+  }
+  if (!physical) {
+    put(m.from_square, Piece{});  // the source loses the piece (J4, J5)
+  } else if (m.castle()) {
+    const Piece rook = src.at(m.aux_square);
+    const int dir = file_of(m.to_square) > file_of(m.from_square) ? 1 : -1;
+    const int rook_to = make_square(file_of(m.from_square) + dir, rank_of(m.from_square));
+    put(m.from_square, Piece{});
+    put(m.aux_square, Piece{});
+    put(m.to_square, piece.as_moved());
+    put(rook_to, rook.as_moved());
+  } else {
+    if (m.en_passant()) put(m.aux_square, Piece{});
+    put(m.from_square, Piece{});
+    put(m.to_square, e.placed);
+  }
+  std::sort(e.source.begin(), e.source.begin() + static_cast<std::ptrdiff_t>(e.source_count),
+            [](const SquareEdit& a, const SquareEdit& b) { return a.square < b.square; });
+  return e;
+}
+
 void GameState::apply(const Move& m) {
   if (!may_move()) {
     throw std::logic_error(
@@ -456,13 +502,10 @@ void GameState::apply(const Move& m) {
 
   // -- the piece that arrives: promoted, or the moving piece without its
   //    unmoved flag (Q15: unless a pawn or brawn left its board under
-  //    jumps_keep_unmoved)
-  Piece placed = piece.as_moved();
-  if (promotes) {
-    placed = Piece(m.promotion, mover);
-  } else if (!physical && pawnlike && rules_.jumps_keep_unmoved) {
-    placed = piece;
-  }
+  //    jumps_keep_unmoved) - and the squares the move changes on its source
+  //    board (move_edits above)
+  const detail::MoveEdits edits = detail::move_edits(m, src, rules_);
+  const Piece placed = edits.placed;
 
   // -- the present's bookkeeping: which played timelines count now (T4)
   const bool advances_destination = !physical && !branches;  // J4
@@ -474,44 +517,38 @@ void GameState::apply(const Move& m) {
   if (physical) {
     BoardBuilder b(src);
     b.set_en_passant(kNoSquare);
-    if (m.castle()) {
-      const Piece rook = src.at(m.aux_square);
-      const int dir = file_of(m.to_square) > file_of(m.from_square) ? 1 : -1;
-      const int rook_to = make_square(file_of(m.from_square) + dir, rank_of(m.from_square));
-      b.remove(m.from_square);
-      b.remove(m.aux_square);
-      b.put(m.to_square, piece.as_moved());
-      b.put(rook_to, rook.as_moved());
-    } else {
-      if (m.en_passant()) b.remove(m.aux_square);
-      b.remove(m.from_square);
-      b.put(m.to_square, placed);
-      if (m.double_step()) {
-        // S7: en passant within this board, by the opponent, from the board
-        // this move creates - recorded only where it can be taken: the piece
-        // that arrived is still a pawn (or brawn) - not promoted - and an
-        // enemy pawn (or brawn) stands beside it. So equal positions keep
-        // equal keys.
-        const auto takes_part = [&](Piece x) {
-          return !x.empty() && (x.kind() == PieceKind::Pawn ||
-                                (rules_.en_passant_brawns && x.kind() == PieceKind::Brawn));
-        };
-        bool takeable = false;
-        for (const int df : {-1, 1}) {
-          const Piece neighbour = b.at(file_of(m.to_square) + df, rank_of(m.to_square));
-          if (takes_part(neighbour) && neighbour.colour() != mover) takeable = true;
-        }
-        if (takes_part(placed) && takeable) {
-          b.set_en_passant(make_square(file_of(m.from_square),
-                                       (rank_of(m.from_square) + rank_of(m.to_square)) / 2));
-        }
+    // Castling's king and rook (S1), en passant's victim (S7), or the piece
+    // from its square to its destination.
+    for (std::size_t i = 0; i < edits.source_count; ++i) {
+      b.put(edits.source[i].square, edits.source[i].piece);
+    }
+    if (m.double_step()) {
+      // S7: en passant within this board, by the opponent, from the board
+      // this move creates - recorded only where it can be taken: the piece
+      // that arrived is still a pawn (or brawn) - not promoted - and an
+      // enemy pawn (or brawn) stands beside it. So equal positions keep
+      // equal keys.
+      const auto takes_part = [&](Piece x) {
+        return !x.empty() && (x.kind() == PieceKind::Pawn ||
+                              (rules_.en_passant_brawns && x.kind() == PieceKind::Brawn));
+      };
+      bool takeable = false;
+      for (const int df : {-1, 1}) {
+        const Piece neighbour = b.at(file_of(m.to_square) + df, rank_of(m.to_square));
+        if (takes_part(neighbour) && neighbour.colour() != mover) takeable = true;
+      }
+      if (takes_part(placed) && takeable) {
+        b.set_en_passant(make_square(file_of(m.from_square),
+                                     (rank_of(m.from_square) + rank_of(m.to_square)) / 2));
       }
     }
     mv_.append_board(m.from_timeline, b.publish());
   } else {
     BoardBuilder s(src);
     s.set_en_passant(kNoSquare);
-    s.remove(m.from_square);
+    for (std::size_t i = 0; i < edits.source_count; ++i) {
+      s.put(edits.source[i].square, edits.source[i].piece);
+    }
     BoardBuilder d(dst);
     d.set_en_passant(kNoSquare);
     if (branches && !rules_.branch_copies_keep_unmoved) {
