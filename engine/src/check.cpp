@@ -2,7 +2,7 @@
 //   source: engine/src/check.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
 //   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  unchanged: below this header the file is byte for byte the source
+//   state:  changed: a set scan answers royal_capture_exists and in_check under the default Q18/Q19 (spec 3.3); see PROVENANCE.md
 // Check status and submission legality (see t5d/check.hpp). Rule IDs refer to
 // the rulebook, docs/rules/README.md; the definitions are its ruling R1
 // (register H36). Written from the rulebook and the design spec; no other
@@ -11,6 +11,7 @@
 #include "t5d/check.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstdint>
 #include <stdexcept>
@@ -244,6 +245,344 @@ bool scan(const Multiverse& mv, const RuleOptions& rules, Colour attacker,
   return false;
 }
 
+// ---- the set scan: whether a royal capture exists ---------------------------------------
+//
+// Fractal's addition (docs/gates/G1a-rules-review.md): the search asks only WHETHER
+// a royal can be captured, at every turn it tests and every node it visits, and
+// the scan above answers by walking every attacking piece's every line. This one
+// asks the same question from the other end, a board at a time: for each of the
+// attacker's playable boards, and each board a move from it can reach, which of
+// the attacker's pieces stand where a capture of that board's royals starts.
+//
+//  * Within the board: from each royal's square, the leapers' patterns and the
+//    first piece along each of the eight lines.
+//  * Between boards: a move's board displacement is one of eight directions
+//    (dL, dT) repeated n times, and after n steps the piece is n squares along
+//    each spatial axis it moves on. So for the n-th board along a direction, a
+//    royal on square r is captured by a slider on r itself (no spatial axis),
+//    on r's file or rank at distance n (one), or on a diagonal at distance n
+//    (two) - the slider's kind fixed by the number of axes moved - if every
+//    square between is empty. The sliders that keep their square walk together
+//    as one set, losing the squares the boards they cross occupy.
+//  * Leapers between boards: the king's step and the pawn's and brawn's captures
+//    are the first step of those walks; the knight's sixteen board displacements
+//    are read apart.
+//
+// It reads the rules it serves from the scan above and must give its answer
+// exactly: the tests hold the two equal (tests/test_legality.cpp, and the copied
+// test_check.cpp through the move generator). It is written for the default
+// reading of Q18 and Q19 (void blocks; a piece's earlier self blocks); under
+// either alternative the scan above answers instead.
+
+constexpr std::uint64_t bit_at(int x, int y) noexcept {
+  return x >= 0 && x < 8 && y >= 0 && y < 8 ? square_bit(make_square(x, y)) : 0;
+}
+
+struct ScanTables {
+  // [square]: the squares a knight's leap, a king's step away within a board.
+  std::array<std::uint64_t, 64> knight{};
+  std::array<std::uint64_t, 64> king{};
+  // [n][square]: the squares exactly n away along the file or rank; along a diagonal.
+  std::array<std::array<std::uint64_t, 64>, 8> straight{};
+  std::array<std::array<std::uint64_t, 64>, 8> diagonal{};
+  // [direction][square]: every square along a line within a board. Directions
+  // 0-3 run towards higher squares, 4-7 towards lower; 0, 1, 4, 5 are the
+  // rook's and 2, 3, 6, 7 the bishop's.
+  std::array<std::array<std::uint64_t, 64>, 8> ray{};
+  // [attacker][square]: where a pawn or brawn of the attacker's stands to capture
+  // on the square within its board (4.6); the square one rank behind it.
+  std::array<std::array<std::uint64_t, 64>, 2> pawn_from{};
+  std::array<std::array<std::uint64_t, 64>, 2> behind{};
+  // [square]: the squares beside it on its rank.
+  std::array<std::uint64_t, 64> beside{};
+};
+
+constexpr ScanTables make_scan_tables() noexcept {
+  ScanTables t{};
+  constexpr int kRayX[8] = {1, 0, 1, -1, -1, 0, -1, 1};
+  constexpr int kRayY[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  for (int sq = 0; sq < 64; ++sq) {
+    const int x = file_of(sq);
+    const int y = rank_of(sq);
+    const auto s = static_cast<std::size_t>(sq);
+    for (const int a : {-2, 2}) {
+      for (const int b : {-1, 1}) t.knight[s] |= bit_at(x + a, y + b) | bit_at(x + b, y + a);
+    }
+    for (int dx = -1; dx <= 1; ++dx) {
+      for (int dy = -1; dy <= 1; ++dy) {
+        if (dx != 0 || dy != 0) t.king[s] |= bit_at(x + dx, y + dy);
+      }
+    }
+    for (int n = 1; n < 8; ++n) {
+      const auto k = static_cast<std::size_t>(n);
+      t.straight[k][s] = bit_at(x - n, y) | bit_at(x + n, y) | bit_at(x, y - n) | bit_at(x, y + n);
+      t.diagonal[k][s] = bit_at(x - n, y - n) | bit_at(x + n, y - n) | bit_at(x - n, y + n) |
+                         bit_at(x + n, y + n);
+    }
+    for (std::size_t d = 0; d < 8; ++d) {
+      for (int n = 1; n < 8; ++n) t.ray[d][s] |= bit_at(x + n * kRayX[d], y + n * kRayY[d]);
+    }
+    for (const Colour c : {Colour::White, Colour::Black}) {
+      const auto ci = static_cast<std::size_t>(index_of(c));
+      const int fy = geometry::forward_rank(c);
+      t.pawn_from[ci][s] = bit_at(x - 1, y - fy) | bit_at(x + 1, y - fy);
+      t.behind[ci][s] = bit_at(x, y - fy);
+    }
+    t.beside[s] = bit_at(x - 1, y) | bit_at(x + 1, y);
+  }
+  return t;
+}
+
+constexpr ScanTables kScan = make_scan_tables();
+
+// The boards a set scan reads: a multiverse and, for check status, one more
+// board at the end of each passed timeline - its head again, as a pass moves
+// nothing (R1; what passed_multiverse builds, read in place).
+struct View {
+  const Multiverse& mv;
+  int min_timeline = 0;
+  int max_timeline = -1;
+  int max_half_turn = -1;
+  // Bit (timeline - min_timeline): the timeline is advanced by a pass. Read only
+  // once a timeline has been passed, and none is passed in a multiverse of more
+  // than kMostTimelines (in_check builds the passed multiverse there instead), so
+  // a view with no pass reads a multiverse of any size.
+  std::array<std::uint64_t, 4> passed{};
+  bool any_passed = false;
+
+  static constexpr int kMostTimelines = 256;
+
+  bool is_passed(int timeline) const noexcept {
+    if (!any_passed) return false;
+    const auto i = static_cast<unsigned>(timeline - min_timeline);
+    return ((passed[i >> 6] >> (i & 63u)) & 1u) != 0;
+  }
+  void pass(int timeline) noexcept {
+    const auto i = static_cast<unsigned>(timeline - min_timeline);
+    passed[i >> 6] |= std::uint64_t{1} << (i & 63u);
+    any_passed = true;
+  }
+  // The timeline's last half-turn, as scanned.
+  int last_half_turn(const Timeline& t) const noexcept {
+    return t.last_half_turn() + (is_passed(t.position()) ? 1 : 0);
+  }
+  // The board at half-turn h of `t`, or nullptr; `history`: it is not the last.
+  const Board* board_at(const Timeline& t, int h, bool& history) const noexcept {
+    const int last = t.last_half_turn();
+    if (h <= last) {
+      if (h < t.first_half_turn()) return nullptr;
+      history = h != last || is_passed(t.position());
+      return t.boards()[static_cast<std::size_t>(h - t.first_half_turn())].get();
+    }
+    if (h == last + 1 && is_passed(t.position())) {
+      history = false;
+      return t.head().get();
+    }
+    return nullptr;
+  }
+};
+
+struct SetScan {
+  const View& v;
+  const RuleOptions& rules;
+  std::span<const int> inactive;
+  Colour attacker;
+  // Every board is a destination (the defaults of Q8 and Q20).
+  bool lands_anywhere = true;
+
+  // J2 with Q8 and Q20, as landable() above.
+  bool landable(int timeline, int half_turn, bool history) const noexcept {
+    if (lands_anywhere || !history) return true;
+    if (!rules.turn_zero_reachable && turn_of(half_turn) == 0) return false;
+    if (!rules.inactive_history_is_destination &&
+        std::binary_search(inactive.begin(), inactive.end(), timeline)) {
+      return false;
+    }
+    return true;
+  }
+
+  // Whether a piece of the attacker's on `board` - timeline p's last, at
+  // half-turn h - can capture a royal.
+  bool from_board(const Timeline& home, int p, int h, const Board& board) const noexcept {
+    const Colour defender = opposite(attacker);
+    const std::uint64_t mine = board.pieces(attacker);
+    if (mine == 0) return false;
+    const auto side = static_cast<std::size_t>(index_of(attacker));
+    const std::uint64_t queens = board.pieces(PieceKind::Queen) | board.pieces(PieceKind::RoyalQueen);
+    // The sliders by the number of axes a step moves along (4.1-4.3, 4.8-4.11).
+    const std::array<std::uint64_t, 5> lines = {
+        0,
+        mine & (board.pieces(PieceKind::Rook) | board.pieces(PieceKind::Princess) | queens),
+        mine & (board.pieces(PieceKind::Bishop) | board.pieces(PieceKind::Princess) | queens),
+        mine & (board.pieces(PieceKind::Unicorn) | queens),
+        mine & (board.pieces(PieceKind::Dragon) | queens),
+    };
+    const std::uint64_t knights = mine & board.pieces(PieceKind::Knight);
+    const std::uint64_t kings =
+        mine & (board.pieces(PieceKind::King) | board.pieces(PieceKind::CommonKing));
+    const std::uint64_t brawns = mine & board.pieces(PieceKind::Brawn);
+    const std::uint64_t pawns = (mine & board.pieces(PieceKind::Pawn)) | brawns;
+
+    // -- within the board
+    if (const std::uint64_t royals = board.royals(defender); royals != 0) {
+      const std::uint64_t occupied = board.occupied();
+      for (std::uint64_t bits = royals; bits != 0; bits &= bits - 1) {
+        const auto r = static_cast<std::size_t>(std::countr_zero(bits));
+        if ((kScan.knight[r] & knights) != 0 || (kScan.king[r] & kings) != 0 ||
+            (kScan.pawn_from[side][r] & pawns) != 0) {
+          return true;
+        }
+        if ((lines[1] | lines[2]) == 0) continue;
+        for (std::size_t d = 0; d < 8; ++d) {
+          const std::uint64_t blockers = kScan.ray[d][r] & occupied;
+          if (blockers == 0) continue;
+          const int first = d < 4 ? std::countr_zero(blockers) : 63 - std::countl_zero(blockers);
+          const bool rook_line = d == 0 || d == 1 || d == 4 || d == 5;
+          if ((square_bit(first) & lines[rook_line ? 1 : 2]) != 0) return true;
+        }
+      }
+    }
+
+    // -- between boards: the eight board directions
+    const int fl = geometry::forward_timeline(attacker);
+    const bool any_slider = (lines[1] | lines[2] | lines[3] | lines[4]) != 0;
+    if (any_slider || kings != 0 || pawns != 0) {
+      for (int dl = -1; dl <= 1; ++dl) {
+        for (int dt = -1; dt <= 1; ++dt) {
+          if (dl == 0 && dt == 0) continue;
+          const std::size_t board_axes = dl != 0 && dt != 0 ? 2 : 1;
+          const std::uint64_t straight = lines[board_axes + 1];
+          const std::uint64_t diagonal = lines[board_axes + 2];
+          // The sliders that keep their squares, their lines still open.
+          std::uint64_t alive = lines[board_axes];
+          // The first step's leapers: the king along any axes (4.4, 4.12); the
+          // pawn and the brawn along the forward timeline and a turn (4.6); the
+          // brawn's own captures (4.7; Q14).
+          const bool pawn_step = dl == fl && dt != 0;
+          const bool brawn_turn = dl == 0;              // forward rank, a turn either way
+          const bool brawn_line = dl == fl && dt == 0;  // forward timeline: a file, or the rank
+          const bool leapers = kings != 0 || (pawn_step && pawns != 0) ||
+                               ((brawn_turn || brawn_line) && brawns != 0);
+          if (alive == 0 && straight == 0 && diagonal == 0 && !leapers) continue;
+          std::array<std::uint64_t, 8> crossed{};  // [i]: what board i of the walk occupies
+          const Timeline* t = &home;
+          for (int n = 1;; ++n) {
+            const int l = p + n * dl;
+            const int ht = h + 2 * n * dt;
+            if (l < v.min_timeline || l > v.max_timeline || ht < 0 || ht > v.max_half_turn) break;
+            if (dl != 0) t = v.mv.timeline(l);
+            bool history = false;
+            const Board* target = v.board_at(*t, ht, history);
+            if (target == nullptr) break;  // J8: void blocks
+            const std::uint64_t royals = target->royals(defender);
+            if (royals != 0 && landable(l, ht, history)) {
+              if ((alive & royals) != 0) return true;
+              const bool compound = n < 8 && (straight | diagonal) != 0;
+              if (n == 1 ? (leapers || compound) : compound) {
+                const auto k = static_cast<std::size_t>(n);
+                for (std::uint64_t bits = royals; bits != 0; bits &= bits - 1) {
+                  const int square = std::countr_zero(bits);
+                  const auto r = static_cast<std::size_t>(square);
+                  if (n == 1) {
+                    if (((kScan.king[r] | square_bit(square)) & kings) != 0) return true;
+                    if (pawn_step && (square_bit(square) & pawns) != 0) return true;
+                    if (brawn_turn && (kScan.behind[side][r] & brawns) != 0) return true;
+                    if (brawn_line && (kScan.beside[r] & brawns) != 0) return true;
+                    if (brawn_line && rules.brawn_rank_timeline_capture &&
+                        (kScan.behind[side][r] & brawns) != 0) {
+                      return true;
+                    }
+                    if (!compound) continue;
+                  }
+                  // A slider n squares away along a file, rank or diagonal: every
+                  // square between, one on each board crossed, empty (J7).
+                  for (std::uint64_t from = (kScan.straight[k][r] & straight) |
+                                            (kScan.diagonal[k][r] & diagonal);
+                       from != 0; from &= from - 1) {
+                    const int a = std::countr_zero(from);
+                    const int sx = (file_of(square) > file_of(a)) - (file_of(square) < file_of(a));
+                    const int sy = (rank_of(square) > rank_of(a)) - (rank_of(square) < rank_of(a));
+                    bool open = true;
+                    for (int i = 1; i < n && open; ++i) {
+                      open = (crossed[static_cast<std::size_t>(i)] &
+                              square_bit(make_square(file_of(a) + i * sx, rank_of(a) + i * sy))) == 0;
+                    }
+                    if (open) return true;
+                  }
+                }
+              }
+            }
+            const std::uint64_t occupied = target->occupied();
+            alive &= ~occupied;
+            if (n < 8) crossed[static_cast<std::size_t>(n)] = occupied;
+            // Past seven boards only a slider on its own square is still moving.
+            if (alive == 0 && (n >= 7 || (straight | diagonal) == 0)) break;
+          }
+        }
+      }
+    }
+
+    // -- the knight between boards (4.5; J8: over void and pieces alike): two
+    //    along one axis and one along another, one of them at least a board axis
+    if (knights != 0) {
+      for (int bl = -2; bl <= 2; ++bl) {
+        for (int bt = -2; bt <= 2; ++bt) {
+          // The board steps of the leap: 1 or 2 along one board axis, or 3 as two
+          // along one and one along the other.
+          const int reach = (bl < 0 ? -bl : bl) + (bt < 0 ? -bt : bt);
+          if (reach == 0 || reach > 3 || (reach == 2 && bl != 0 && bt != 0)) continue;
+          const int l = p + bl;
+          const int ht = h + 2 * bt;
+          if (l < v.min_timeline || l > v.max_timeline || ht < 0) continue;
+          bool history = false;
+          const Board* target = v.board_at(*v.mv.timeline(l), ht, history);
+          if (target == nullptr) continue;
+          const std::uint64_t royals = target->royals(defender);
+          if (royals == 0 || !landable(l, ht, history)) continue;
+          for (std::uint64_t bits = royals; bits != 0; bits &= bits - 1) {
+            const int square = std::countr_zero(bits);
+            const auto r = static_cast<std::size_t>(square);
+            // One board step: two squares along a file or rank. Two board steps
+            // on one axis: one square. A step on each board axis: none.
+            const std::uint64_t from = reach == 1   ? kScan.straight[2][r]
+                                       : reach == 2 ? kScan.straight[1][r]
+                                                    : square_bit(square);
+            if ((from & knights) != 0) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  bool run() const noexcept {
+    for (const TimelineRef& t : v.mv.timelines()) {
+      // L5: the attacker's playable boards - the last of each timeline, with
+      // the attacker to move on it.
+      const int h = v.last_half_turn(*t);
+      if (to_move_at(h) != attacker) continue;
+      if (from_board(*t, t->position(), h, *t->head())) return true;
+    }
+    return false;
+  }
+};
+
+// Whether the set scan reads these rules (see its comment).
+inline bool set_scan_reads(const RuleOptions& rules) noexcept {
+  return rules.past_self_blocks && !rules.sliders_cross_void;
+}
+
+inline View view_of(const Multiverse& mv) noexcept {
+  return View{mv, mv.min_timeline(), mv.max_timeline(), mv.latest_half_turn(), {}};
+}
+
+inline bool set_scan(const View& view, const RuleOptions& rules, Colour attacker,
+                     std::span<const int> inactive) noexcept {
+  const SetScan s{view, rules, inactive, attacker,
+                  rules.turn_zero_reachable && rules.inactive_history_is_destination};
+  return s.run();
+}
+
 std::string piece_word(PieceKind k) {
   switch (k) {
     case PieceKind::Pawn: return "pawn";
@@ -302,6 +641,10 @@ std::vector<CapturePlace> capture_places(const RoyalCapture& c) {
 
 bool royal_capture_exists(const Multiverse& multiverse, const RuleOptions& rules, Colour attacker,
                           std::span<const int> inactive_timelines) {
+  if (multiverse.empty()) return false;
+  if (set_scan_reads(rules)) {
+    return set_scan(view_of(multiverse), rules, attacker, inactive_timelines);
+  }
   const auto stop = [](const RoyalCapture&) { return true; };
   return scan(multiverse, rules, attacker, inactive_timelines, stop);
 }
@@ -391,7 +734,24 @@ Multiverse passed_multiverse(const GameState& s) {
 
 bool in_check(const GameState& s) {
   const Colour opponent = opposite(s.to_move());
-  if (!has_royal(s.multiverse(), s.to_move())) return false;  // C13
+  const Multiverse& mv = s.multiverse();
+  // The passed boards read in place (View), where the set scan reads the rules:
+  // no multiverse is built. A side with no royal has none to capture (C13).
+  // (Under Q6's alternative a deferred timeline can make this no turn's start:
+  // passed_timelines says so, below.)
+  if (set_scan_reads(s.rules()) && s.deferred_timelines().empty() &&
+      mv.timeline_count() <= View::kMostTimelines) {
+    View view = view_of(mv);
+    for (const TimelineRef& t : mv.timelines()) {
+      const int p = t->position();
+      // R1: ACTIVE boards IN THE PRESENT, the mover's (passed_timelines).
+      if (!s.active(p) || t->last_half_turn() != s.present() || !s.playable_by_mover(p)) continue;
+      view.pass(p);
+    }
+    if (view.any_passed) view.max_half_turn = std::max(view.max_half_turn, s.present() + 1);
+    return set_scan(view, s.rules(), opponent, s.inactive_timelines());
+  }
+  if (!has_royal(mv, s.to_move())) return false;  // C13
   return royal_capture_exists(passed_multiverse(s), s.rules(), opponent, s.inactive_timelines());
 }
 

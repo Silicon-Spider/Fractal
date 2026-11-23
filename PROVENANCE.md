@@ -6,8 +6,19 @@ Fractal copies Temporal-5D's rules engine once, from one pinned commit, and neve
 
 - Repository: https://github.com/Silicon-Spider/temporal-5d
 - Pinned commit: `c8a9c490bfde650466609531f8083d69513c6036`, the head of `main` when the copy was made (committed 2026-11-08 21:05 +1100).
-- The spec names 2cb107d (2026-11-02). It is an ancestor of the pin, nine commits back, and no copied file differs between the two: `git diff 2cb107d c8a9c49` over the 221 copied paths is empty.
+- **That id is no longer on any branch upstream.** Temporal-5D's history was rewritten after the copy (an author e-mail address replaced). Every commit got a new id and kept its tree, so every copied byte is the same. The headers and Fractal's documents keep the ids they were written with, and a commit's tree id is what identifies its content now (found 2026-11-17, `docs/gates/G1a-rules-review.md`).
+- The spec as first written named 2cb107d (2026-11-02). It is an ancestor of the pin, nine commits back, and no copied file differs between the two: `git diff 2cb107d c8a9c49` over the 221 copied paths is empty, and so is the same diff between their new ids.
 - Copied: 2026-11-08, 221 files. Paths, includes and the `t5d` namespace are unchanged.
+
+The three Temporal-5D commits Fractal cites, each matched to upstream's `main` by its tree on 2026-11-22:
+
+| Cited as | What it is | Its id upstream now | Its tree, under both ids |
+| --- | --- | --- | --- |
+| `c8a9c49` | The pin: 182 file headers, `tools/check_provenance.py`, the spec and the gate reports | `03eca7a28e0ee54e9c576cbec984eec9437000a4` | `ce35e1e57556add8c6cb550a1a08f9128247538a` |
+| `2cb107d` | The commit the spec first named (above; `docs/gates/G0.md`) | `d8a54d35bcb9faadd0cbe625c7fe17f72d7625ec` | `77a435ac6c847e22492389fd1c5d298226116245` |
+| `2740e66` | The commit Temporal-5D's M9 measured (`docs/MEASUREMENTS.md`, `docs/gates/G0.md`) | `b5c117635a886954ab5e6636471c24593b86a7fd` | `5e92be8a8e2a0497b7a53050cdbfe1b23384eceb` |
+
+GitHub still answers for the three old ids when asked for one directly, but no branch or tag holds them, so a new clone doesn't have them and they may be removed.
 
 ## How each file carries its provenance
 
@@ -27,13 +38,17 @@ The spec lists the modules, the 64 test files, the harness, the rulebook and t0d
 ## Not copied
 
 - Anything in spec §3.2: expand, labels, views, mcts, mcts_evaluators, selfplay, capi_search, scanner, guard, hunt, prover, ladder and assets.
-- The harness's five oracle submodules (the `oracles/third_party/*` gitlinks) and Temporal-5D's `.gitmodules`. Fractal has no submodules and fetches no oracle code (NS2, NF10, NF12).
+- The harness's five oracle submodules (the `oracles/third_party/*` gitlinks) and Temporal-5D's `.gitmodules`, at the copy. Since G0's ruling 1 Fractal declares the same five itself, at the commits `oracles/oracles.lock.toml` locks: test fixtures, checked out by `python oracles/harness.py sync`, that the engine's build never reads (NS2, NF10, NF12; `docs/gates/G1a-rules-review.md`).
 - Temporal-5D's other tools (`t5d-measure`, `t5d-bench`, `t5d-play` and the rest), `engine/testdata/`, `engine/build.py`, `engine/CMakeLists.txt` and `engine/cmake/`. Fractal has its own build (`CMakeLists.txt`).
 - Temporal-5D's `PROVENANCE.md`. The copied harness generated the inventory block at the end of this file in Fractal (`python oracles/harness.py provenance --write`).
 
 ## Changes since the copy
 
-One change, the one spec §3.4 allows before G0: remove capi's transformer entry points and the record types only they use. Each file's header now says it changed. The table gives the SHA-256 of the bytes below each header now.
+Each changed file's header says so in its `state:` line. The tables give the SHA-256 of the bytes below each header now; `python tools/check_provenance.py --hash PATH` prints it.
+
+### Before G0
+
+One change, the one spec §3.4 allows before G0: remove capi's transformer entry points and the record types only they use.
 
 | File | Change | SHA-256 now, below the header |
 | --- | --- | --- |
@@ -44,11 +59,33 @@ One change, the one spec §3.4 allows before G0: remove capi's transformer entry
 
 Kept on purpose, so that no retained function changes: the game handle's `expansion_current` flag and the three writes to it in `t5d_game_apply` (through `apply_to`), `t5d_game_replay_next` and `t5d_game_submit`. Nothing reads it any more. Comments that still mention the expansion are left as they were; `docs/gates/G0.md` lists them.
 
+### Phase 1, part a
+
+Recorded in `docs/gates/G1a-rules-review.md`, with the tests and measurements behind each. None of them changes an answer: the pins of `tests/test_legality.cpp` and the detector hash of `engine/tests/test_detectors.cpp` are as they were on the engine as copied.
+
+| File | Change | SHA-256 now, below the header |
+| --- | --- | --- |
+| `engine/tests/test_search.cpp` | Recovered (spec §3.6): the include of `t5d/expand.hpp` and the second half of `search_legal_moves_are_those_that_begin_a_legal_action_r1`, which calls the uncopied expansion, are removed. The other 21 tests and that test's first half are as copied. 34 lines removed. | `0f6e08c3767e35fdc8f962ceb52bf943a375535f521a4606ce96e04b2d718d7a` |
+| `engine/src/check.cpp` | Adds the set scan: `royal_capture_exists` and `in_check` are answered board by board from bitboards under the default readings of Q18 and Q19, and `in_check` reads the passed boards in place instead of building a multiverse. The copied line scan is unchanged and still answers every other entry point, and both of those under the alternatives. 362 lines added, 2 removed. | `c168c210914e851306f17a3b1938d02a676038914cd0f4c6558407f450d665f0` |
+| `engine/src/state.cpp` | Adds `detail::move_edits`, the squares a move changes on the boards it plays, and has `GameState::apply` build its new boards from it. What `apply` checks and what it builds are unchanged. | `c12507aedea65248207f9e1b91343096625b062d2c3a3158da9e87061a16354f` |
+| `engine/src/hypercuboid.cpp` | Construction reads each candidate's changes from `move_edits` instead of applying the candidate to a copy of the turn start; a node of the budget is spent per candidate as before. `j6_cycle_region` skips an axis that makes no J6 branch before allocating, and the realisation is handed its visitor by reference. | `6553ebf77a332aab389c579883b9109d14cb1aff849cba5fdd622a34135ddaee` |
+| `engine/src/search.cpp` | Counting successors, a kept action's canonical text is written when a second action reaches its state, not for every state; its bytes are counted by an estimate. `PositionSet::insert` takes its state by value. | `243cba1014489b08ec53aa9253360d8b4a7a7e1c286cd8d40f6aacc430899e46` |
+| `engine/src/search_internal.hpp` | `PositionSet::insert` takes its state by value; a comment on the late text. | `23cf3c87865e5f4f1dcaf94e224461a6ad9703f6b868f99ecf1096cd9c862660` |
+
+## Fractal's own files
+
+Files in directories that hold copied files, written for Fractal and not copied from anywhere. `python tools/check_provenance.py` fails on any other file there without a row in this file. A row may end in `/**` to name a whole directory.
+
+| File | What it is |
+| --- | --- |
+| `engine/src/move_edits.hpp` | The internal header of `detail::move_edits`, shared by `state.cpp` and `hypercuboid.cpp`. |
+
 ## Licences
 
 - Temporal-5D: GPL-3.0, by the same author as Fractal (NE5).
 - t0database: MIT. The licence, `data/t0database/LICENSE`, stays with the data.
-- `oracles/drivers/ftxi/ftxi_driver.cpp` adapts code from ftxi's `tools/position_tools.cpp` under the BSD 2-Clause licence. The notice is inside the file. This conflicts with NF12; see `docs/gates/G0.md`.
+- `oracles/drivers/ftxi/ftxi_driver.cpp` adapts code from ftxi's `tools/position_tools.cpp` under the BSD 2-Clause licence. The notice is inside the file. It stays as a test-only program the engine never links (G0's ruling 2, `docs/gates/G0-rulings.md`).
+- `AGENTS.md`, `CONTRIBUTING.md` and `.github/CODEOWNERS` restate Temporal-5D's rules and procedures for the oracle harness in Fractal's terms. They are written for Fractal, not copied.
 
 ## Copied files
 

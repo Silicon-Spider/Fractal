@@ -2,7 +2,7 @@
 //   source: engine/src/hypercuboid.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
 //   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  unchanged: below this header the file is byte for byte the source
+//   state:  changed: construction reads each candidate's changes from move_edits instead of applying it to a copy; two allocations a turn removed (spec 3.3 item 6); see PROVENANCE.md
 // The hypercuboid detector (see t5d/search.hpp). Its design is the engine
 // README's "The hypercuboid detector: design", implemented from that note.
 //
@@ -40,6 +40,7 @@
 #include <utility>
 #include <vector>
 
+#include "move_edits.hpp"
 #include "search_internal.hpp"
 #include "t5d/check.hpp"
 #include "t5d/movegen.hpp"
@@ -643,14 +644,16 @@ class Hyper {
     return static_cast<int>(std::lower_bound(heads_.begin(), heads_.end(), c) - heads_.begin());
   }
 
-  // The changes `next` makes to axis a's playable board.
-  static void set_changes(Value& v, const Board& head, const Board& next) {
+  // The changes a move makes to an axis's playable board `head`: of the squares
+  // it edits (move_edits.hpp: what GameState::apply puts on the board's
+  // successor), ascending, those it leaves holding another piece.
+  static void set_changes(Value& v, const Board& head, const SquareEdit* edits, std::size_t count) {
     v.changes = 0;
-    for (int sq = 0; sq < kSquareCount; ++sq) {
-      if (head.at(sq) == next.at(sq)) continue;
+    for (std::size_t i = 0; i < count; ++i) {
+      if (head.at(edits[i].square) == edits[i].piece) continue;
       if (v.changes == kMaxChanges) throw std::logic_error("hypercuboid: a move changes too much");
-      v.squares[v.changes] = static_cast<std::int8_t>(sq);
-      v.pieces[v.changes] = next.at(sq);
+      v.squares[v.changes] = edits[i].square;
+      v.pieces[v.changes] = edits[i].piece;
       ++v.changes;
     }
   }
@@ -680,17 +683,18 @@ class Hyper {
       a.values.push_back(v);
       return true;
     }
-    // A move within the board, or a jump onto another axis's board: applied to
-    // the turn's start for the boards it leaves.
+    // A move within the board, or a jump onto another axis's board: the boards
+    // it leaves, as the state machine would build them at the turn's start
+    // (read from its edits; until Fractal's change the move was applied to a
+    // copy of the turn's start for them - a node of the budget then as now).
     if (!budget_.spend()) return false;
-    GameState t = s0_;
-    t.apply(m);
+    const MoveEdits edits = move_edits(m, *a.board, rules_);
     if (m.physical()) {
       Value v;
       v.kind = Kind::Physical;
       v.move = index;
       v.castle = m.castle();
-      set_changes(v, *a.board, *t.multiverse().head(a.timeline));
+      set_changes(v, *a.board, edits.source.data(), edits.source_count);
       a.values.push_back(v);
       return true;
     }
@@ -702,13 +706,15 @@ class Hyper {
     depart.move = index;
     depart.partner = j;
     depart.partner_value = static_cast<int>(b.values.size());
-    set_changes(depart, *a.board, *t.multiverse().head(a.timeline));
+    set_changes(depart, *a.board, edits.source.data(), edits.source_count);
     Value arrive;
     arrive.kind = Kind::Arrive;
     arrive.move = index;
     arrive.partner = i;
     arrive.partner_value = static_cast<int>(a.values.size());
-    set_changes(arrive, *b.board, *t.multiverse().head(b.timeline));
+    // J4: the destination board's successor holds the arriving piece.
+    const SquareEdit arrival{m.to_square, edits.placed};
+    set_changes(arrive, *b.board, &arrival, 1);
     a.values.push_back(depart);
     b.values.push_back(arrive);
     // J6: the same jump, made after axis j's board was played, lands on a
@@ -1265,10 +1271,13 @@ class Hyper {
     bool stopped = false;
     trail_.clear();
     seeking_ = resume;
+    // By reference, so that the realisation's function object holds a pointer
+    // and allocates nothing.
+    const Visit visiting = std::ref(visit);
     switch (regime_) {
-      case Regime::Ordered: realise_ordered(x, visit, stopped); break;
-      case Regime::FreeOrder: realise_free(x, visit, stopped); break;
-      case Regime::General: realise_general(x, visit, stopped); break;
+      case Regime::Ordered: realise_ordered(x, visiting, stopped); break;
+      case Regime::FreeOrder: realise_free(x, visiting, stopped); break;
+      case Regime::General: realise_general(x, visiting, stopped); break;
     }
     const bool lost = seeking_;
     seeking_ = false;
@@ -1306,6 +1315,9 @@ class Hyper {
   bool j6_cycle_region(const std::vector<int>& x, Region& region) const {
     const std::size_t k = axes_.size();
     for (std::size_t i = 0; i < k; ++i) {
+      // No cycle starts on an axis that makes no J6 branch (the walk below
+      // would end at once).
+      if (value_of(x, i).kind != Kind::Branch || value_of(x, i).partner < 0) continue;
       std::vector<std::size_t> cycle{i};
       std::size_t at = i;
       bool closed = false;
