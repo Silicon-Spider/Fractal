@@ -2,7 +2,7 @@
 
 On 17 November 2026 Fergus asked for the rules engine and everything else imported from Temporal-5D to be reviewed again, now as parts of an alpha-beta engine: whether each piece belongs in Fractal, and whether it can be improved for it. The example he gave was legality checking, which runs far more often here than under Temporal-5D's search. He also asked for a look at what Kairos and ftxi's engine do, for Temporal-5D's rule against copying code and rules like it to be written into this project, and for Temporal-5D's checks to be carried over where they help.
 
-This report records what was found, what was changed and what is left. It is a part report: **G1a has not passed.** The work is on branch `phase-1a-rules`. It was committed on 22 November as a series, one commit for each change to copied code, and is not pushed, so nothing here has run on GitHub.
+This report records what was found, what was changed and what is left. It is a part report: **G1a has not passed.** The work was done on branch `phase-1a-rules` and committed on 22 November as a series, one commit for each change to copied code. Pull request #3 merged it into `fractal-spec-revision` on 23 November, after its CI run passed on all four jobs; pull request #2 takes that branch into `main`.
 
 ## Summary
 
@@ -17,7 +17,7 @@ This report records what was found, what was changed and what is left. It is a p
 | Criterion | Result | Evidence |
 | --- | --- | --- |
 | NM1 holds after every item | **Met for the three items done**, with one blemish | After each: 366 copied tests and Fractal's own pass, and the commit tier's engine section is clean. The first item's gate run failed its oracle layer on a boundary finding in a tool I had just edited, not in the engine; see *The gate* |
-| The commit tier in CI | **Written, not run** | `.github/workflows/ci.yml` has a `gate` job with submodules. Nothing is pushed, so it has not run on GitHub. Every command in it ran on the desktop |
+| The commit tier in CI | **Met** | CI's `gate` job ran on `2102b73` on 23 November: `verify` with every section ok and nothing excused, then the commit tier, 41 records and 0 declined. See *The CI run* |
 | The nightly tier on the desktop | **Met**, on the code as committed | Run on 17 November after the three items and after each of two late edits to the first, and again on 22 November on the commits. Reports under `build/reports/g1a/`, which git ignores |
 | Every pin unchanged or re-recorded on purpose | **Met** | The detector hash `0x5366691BCAF734AB` and the two new pins are unchanged across all three items |
 | The allocation target of §3.3 item 6 (90% fewer per node) | **Not met** | Construction makes 80% fewer. A node that pulls eight turns makes 39% fewer. See *What is left* |
@@ -126,7 +126,7 @@ One thread of a Ryzen 9 9900X, g++ 16.2 at -O2, every distinct t0database turn s
 - **The commit tier runs.** On the engine as copied and after each item it reproduces ftxi's 8,256 recorded values and the notation parser's 3,012, and compares the engine with them on 41 records: no finding, and none declined against the baseline Temporal-5D recorded on 17 October. It takes under a minute on the desktop. The harness's self-test now runs 687 tests with 5 skipped, where 49 or 50 were skipped at G0 for want of an oracle.
 - **The nightly tier.** Run after the three items, and again after the late fix to item A: ftxi and cwmtt with their naive searches, Chess in 5D and the notation parser all reproduce their recordings, and the engine differential passes with none declined. Seven minutes on the desktop. The GHC it needs came from the archive Temporal-5D's harness had already downloaded; the harness checked it against the lock file's checksum before unpacking it. Kairos is not built, as §3.5 rules, so its four live tests are the self-test's skips, with one that needs symlinks.
 - **`test_search` is recovered** by the trim §3.6 names: the include of `t5d/expand.hpp` and the half of one test that calls the expansion, 34 lines. Its 22 tests pass, the three that hold "never a mate on a budget stop" among them. The copied suite is now 366 passing tests in 29 files, with the same 3 skipped.
-- **Pins, recorded before any copied code changed.** `tests/test_legality.cpp` hashes the generator's output on 243 positions from nine variants under two scorers (10,454 turns with their moves, successor keys, scores and the search's own counts) and the check verdicts on the same positions and 1,942 random actions. The positions come from the copied synthetic player and the scores are integers, so the hashes should be the same on every CI target; that is not shown until the Linux jobs run.
+- **Pins, recorded before any copied code changed.** `tests/test_legality.cpp` hashes the generator's output on 243 positions from nine variants under two scorers (10,454 turns with their moves, successor keys, scores and the search's own counts) and the check verdicts on the same positions and 1,942 random actions. The positions come from the copied synthetic player and the scores are integers, and the hashes are the same on every CI target: g++ 13.3 and clang 18.1 on Linux, and g++ 16.2 on Windows (*The CI run*).
 - **Fractal's own tests.** Eight, in a second runner beside the copied one: the two pins; the scans against each other; generator exhaustion against the depth-first detector; a generator stopped mid-run against the full run; and the three tests of item A (the scans on random multiverses, check status read in place, and a multiverse of 300 timelines).
 - **The test inventory is pinned.** `tools/run_tests.py --inventory` fails a run whose passed and skipped counts per file differ from `tools/inventory/*.tsv`, so a test can't drop out of the build unnoticed.
 - **CI.** The two existing jobs stay free of submodules and gain the inventories, Fractal's tests and `fractal-legality --verify`. They no longer treat `verify`'s checkout findings as expected output; the new `gate` job runs `verify` with nothing excused, then the commit tier. I ran the two kinds of job's harness steps on the desktop in both states: with the checkouts and builds present, and with the submodules declared but neither checked out nor built, which is what a job without submodules sees. In the second state the self-test passes with 50 skipped and the restricted gate's engine section is clean, as at G0.
@@ -151,6 +151,14 @@ The rows of 17 November ran on the working tree before it was committed; the las
 
 **The commit tier gates no ruleset.** It is a smoke test, as its own last lines say: it fails an engine on a finding or on a record it used to read and now declines. The nightly tier gates two rulesets: Standard - Half Reflected (one record, 21 positions) and Standard - Reversed Royalty (one record, 122 positions). Standard is not gated, because the engine can't read one of its records (`ftxi/softmate`). Standard - Turn Zero is not gated, because only one oracle follows one of its records as far as the engine goes. Standard - Defended Pawn has no record at all.
 
+### The CI run
+
+**The CI run behind this report:** [45133969227](https://github.com/Silicon-Spider/Fractal/actions/runs/45133969227), the pull request's run on `2102b73`, all four jobs green; the push run of the same commit, [45133963518](https://github.com/Silicon-Spider/Fractal/actions/runs/45133963518), is green too. It was the first time the new code was built anywhere but the desktop. Later commits change only this report.
+
+- **The jobs without submodules:** linux with g++ 13.3, linux with clang 18.1, and windows with MSYS2 g++ 16.2. Each gave 366 copied tests passing with 3 skipped and Fractal's 8 passing, both to their inventories, so the two pins hold on all three targets. `fractal-legality --verify` found no difference on 22,761 positions. The provenance check found 221 copied files, 10 changed as recorded, 1 of Fractal's own and none failing, and the docs check was clean. The self-test passed with 49 skipped, the restricted gate found nothing against the engine, and the near-mate smoke test took 184 nodes.
+- **The `gate` job,** with g++ 13.3: `verify` with every section ok and nothing excused, the self-test with 687 tests and 20 skipped, and the commit tier, oracle layer ok, 41 records, 0 declined. The desktop skips only 5 in the self-test because the nightly tier's oracles are built there too; CI builds only the commit tier's two.
+- **One warning, not an error:** GitHub runs `actions/checkout@v4` and `actions/setup-python@v5` on Node.js 24 because they target Node.js 20, which it has deprecated.
+
 ## Temporal-5D's checks
 
 An inventory of every mechanical check and standing rule in Temporal-5D was made at the pin and in its live tree. What Fractal does with each:
@@ -160,7 +168,7 @@ An inventory of every mechanical check and standing rule in Temporal-5D was made
 | Boundary: nothing outside `oracles/` reaches into it or names an oracle | `verify`, in CI | Copied at G0; all rules now run with checkouts present |
 | Copy check: six lines of logic, or one long line, matching a pinned source | `verify`, in CI | **Live for the first time.** At G0 it was skipped five times over and CI expected that |
 | Pins, corpus, known divergences, rulebook, baseline, golden files | `verify` | **All pass for the first time**; at G0 pins and corpus could only fail |
-| Commit tier on every push | Its own workflow | **Carried over** as CI's `gate` job; not yet run on GitHub |
+| Commit tier on every push | Its own workflow | **Carried over** as CI's `gate` job, green on its first run |
 | Nightly tier | A scheduled workflow | On the desktop, before a change to copied code merges and at each gate report, as spec §3.5 rules. Not scheduled |
 | Release tier | By hand or on a tag | Not used (§3.5) |
 | Engine built with no submodules | Its own workflow | Kept: two jobs |
@@ -263,10 +271,10 @@ Not for Fractal: make and unmake. NB3 commits to positions as values, and the ne
 - New tests for the copied-code cases of `test_turn_state` and `test_capi_game` (§3.6).
 - §3.3 item 7 (reused move lists) and items 6b to 6d (pooled working memory, prebuilt boards). The allocation target is not met.
 - §3.3 item 1 (per-thread roots, pools).
-- The `gate` CI job has to run green on GitHub, and `main` needs branch protection with the CI jobs as required checks.
-- **The new code has been compiled by one compiler.** Everything here was built and run with g++ 16.2 on Windows only. CI's g++ 13 and clang jobs on Linux have not seen it, and the two pins have not been shown equal on another target.
+- `main` needs branch protection with the four CI jobs as required checks.
+- **The speed figures come from one machine and one compiler,** g++ 16.2 on the desktop. CI shows the code builds and answers the same on two more compilers, not how fast it runs there.
 - A pin of allocation counts per turn as a test. The counts are measured by the tool, not asserted.
-- Nothing is pushed. The work is committed with one commit for each item, as §3.3 asks changes to land. The pull request, and with it CI's first run on this code, wait on Fergus.
+- Nothing is in `main` yet. The work reaches it with pull request #2, one commit for each item as §3.3 asks changes to land.
 
 ## Proposed doc changes
 
