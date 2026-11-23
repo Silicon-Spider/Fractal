@@ -2,7 +2,7 @@
 
 On 17 November 2026 Fergus asked for the rules engine and everything else imported from Temporal-5D to be reviewed again, now as parts of an alpha-beta engine: whether each piece belongs in Fractal, and whether it can be improved for it. The example he gave was legality checking, which runs far more often here than under Temporal-5D's search. He also asked for a look at what Kairos and ftxi's engine do, for Temporal-5D's rule against copying code and rules like it to be written into this project, and for Temporal-5D's checks to be carried over where they help.
 
-This report records what was found, what was changed and what is left. It is a part report: **G1a has not passed.** The work is on branch `phase-1a-rules`. It was committed on 22 November as a series, one commit for each change to copied code, and is pull request #3, whose CI run on 23 November passed on all four jobs.
+This report records what was found, what was changed and what is left. It is a part report: **G1a has not passed.** The work was done on branch `phase-1a-rules` and committed on 22 November as a series, one commit for each change to copied code. Pull request #3 merged it into `fractal-spec-revision` on 23 November, after its CI run passed on all four jobs; pull request #2 takes that branch into `main`.
 
 ## Summary
 
@@ -274,7 +274,7 @@ Not for Fractal: make and unmake. NB3 commits to positions as values, and the ne
 - `main` needs branch protection with the four CI jobs as required checks.
 - **The speed figures come from one machine and one compiler,** g++ 16.2 on the desktop. CI shows the code builds and answers the same on two more compilers, not how fast it runs there.
 - A pin of allocation counts per turn as a test. The counts are measured by the tool, not asserted.
-- Nothing is merged. The work is pull request #3, with one commit for each item as §3.3 asks changes to land, stacked on pull request #2.
+- Nothing is in `main` yet. The work reaches it with pull request #2, one commit for each item as §3.3 asks changes to land.
 
 ## Proposed doc changes
 
