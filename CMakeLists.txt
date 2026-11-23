@@ -1,20 +1,23 @@
-# Chronos: a CPU-only engine for 5D Chess With Multiverse Time Travel (docs/SPEC.md).
+# Fractal: a CPU-only engine for 5D Chess With Multiverse Time Travel (docs/SPEC.md).
 #
-# Phase 0 builds the rules engine copied from Temporal-5D (spec 3.1; PROVENANCE.md)
-# exactly as copied, with its own tests and the gate's engine adapter, plus the
-# Phase 0 measurement tools in tools/.
+# It builds the rules engine copied from Temporal-5D (spec 3.1; PROVENANCE.md, which
+# also lists every change made to it since), with its own tests and the gate's engine
+# adapter, plus Fractal's own tests of it and the measurement tools in tools/.
 #
-#   t5d_core       static library: the copied rules engine
-#   t5d            shared library: the C API (engine/include/t5d/capi.h)
-#   t5d-tests      the copied tests, in their own in-house runner
-#   t5d-gate       the differential harness's engine adapter
-#   chronos-bench  Phase 0 baseline speeds (docs/MEASUREMENTS.md)
-#   chronos-relhist  attack-distance and placement histograms over t0database
+#   t5d_core         static library: the copied rules engine
+#   t5d              shared library: the C API (engine/include/t5d/capi.h)
+#   t5d-tests        the copied tests, in their own in-house runner
+#   t5d-gate         the differential harness's engine adapter
+#   fractal-tests    Fractal's tests of the copied code, on the same runner (tests/)
+#   fractal-bench    Phase 0 baseline speeds (docs/MEASUREMENTS.md)
+#   fractal-legality where the time of legality goes, and its answers by second routes
+#   fractal-relhist  attack-distance and placement histograms over t0database
 #
 # Configure into build/engine: the harness runs ./build/engine/t5d-gate.
 #   cmake -S . -B build/engine -G Ninja -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build/engine
-#   python tools/run_tests.py --exe build/engine/t5d-tests
+#   python tools/run_tests.py --exe build/engine/t5d-tests --inventory tools/inventory/t5d-tests.tsv
+#   python tools/run_tests.py --exe build/engine/fractal-tests --tests-dir tests --inventory tools/inventory/fractal-tests.tsv
 #
 # Nothing here may refer to anything under the harness's directory: the engine's
 # build never depends on the test harness or an oracle. Nothing here fetches code,
@@ -22,7 +25,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-project(chronos
+project(fractal
   VERSION 0.1.0
   DESCRIPTION "5D chess engine: alpha-beta over whole turns, scored by an NNUE"
   LANGUAGES CXX)
@@ -32,7 +35,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
       "Build type: Release, Debug, RelWithDebInfo or MinSizeRel" FORCE)
 endif()
 
-option(CHRONOS_WERROR "Treat compiler warnings as errors" OFF)
+option(FRACTAL_WERROR "Treat compiler warnings as errors" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,11 +61,11 @@ add_library(t5d_options INTERFACE)
 target_compile_features(t5d_options INTERFACE cxx_std_20)
 if(MSVC)
   target_compile_options(t5d_options INTERFACE /W4 /permissive- /utf-8
-    $<$<BOOL:${CHRONOS_WERROR}>:/WX>)
+    $<$<BOOL:${FRACTAL_WERROR}>:/WX>)
 else()
   target_compile_options(t5d_options INTERFACE
     -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion
-    $<$<BOOL:${CHRONOS_WERROR}>:-Werror>)
+    $<$<BOOL:${FRACTAL_WERROR}>:-Werror>)
 endif()
 target_compile_definitions(t5d_options INTERFACE T5D_VERSION_STRING="${PROJECT_VERSION}")
 
@@ -131,12 +134,15 @@ target_link_libraries(t5d-gate PRIVATE t5d_core)
 # (docs/gates/G0.md lists the rest and why). As upstream, one runner holds them all
 # and the C API is tested linked in statically, from the same source as the library.
 #
+# test_search is built with its one case that calls the uncopied expansion trimmed
+# (spec 3.6; PROVENANCE.md, "Changes since the copy").
+#
 # Not built (each needs something outside the copy):
 #   test_alloc test_assets test_audit test_capi_game test_capi_search
 #   test_certificate test_expand test_expand_reference test_guard test_hunt
 #   test_hunt_truth test_ladder test_mcts test_mcts_memory test_mcts_tree
-#   test_play_exe test_prover test_scanner test_search test_selfplay
-#   test_shared_stores test_sixbpp test_turn_state test_views
+#   test_play_exe test_prover test_scanner test_selfplay test_shared_stores
+#   test_sixbpp test_turn_state test_views
 
 add_executable(t5d-tests
   engine/tests/test_main.cpp
@@ -159,6 +165,7 @@ add_executable(t5d-tests
   engine/tests/test_pgn_replay.cpp
   engine/tests/test_random_play.cpp
   engine/tests/test_rules.cpp
+  engine/tests/test_search.cpp
   engine/tests/test_special_moves.cpp
   engine/tests/test_state.cpp
   engine/tests/test_synthetic.cpp
@@ -181,19 +188,38 @@ target_compile_definitions(t5d-tests PRIVATE
   "T5D_TEST_SCRATCH=\"${CMAKE_CURRENT_BINARY_DIR}/test-scratch\""
   "T5D_ENGINE_DIR=\"${T5D_ENGINE_DIR}\"")
 
-# ---- Chronos's Phase 0 tools (new code, not copied) ---------------------------------
+# ---- Fractal's own tests of the copied code (new code, not copied; spec 3.6) ---------
+#
+# The copied runner and framework (engine/tests/test_main.cpp, test_framework.hpp),
+# unchanged, with test sources written for Fractal in tests/. A second runner, so the
+# copied suite stays exactly the copied suite.
 
-add_executable(chronos-bench tools/bench/chronos_bench.cpp)
-target_link_libraries(chronos-bench PRIVATE t5d_tools)
-string(TOUPPER "${CMAKE_BUILD_TYPE}" CHRONOS_BUILD_TYPE_UPPER)
-string(STRIP "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${CHRONOS_BUILD_TYPE_UPPER}}" CHRONOS_FLAGS_TEXT)
-target_compile_definitions(chronos-bench PRIVATE
-  "CHRONOS_BUILD_TYPE=\"${CMAKE_BUILD_TYPE}\""
-  "CHRONOS_CXX_FLAGS=\"${CHRONOS_FLAGS_TEXT}\""
-  "CHRONOS_COMPILER=\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\"")
+add_executable(fractal-tests
+  engine/tests/test_main.cpp
+  tests/test_legality.cpp)
+target_include_directories(fractal-tests PRIVATE ${T5D_ENGINE_DIR}/tests)
+target_link_libraries(fractal-tests PRIVATE t5d_core t5d_tools)
 
-add_executable(chronos-relhist tools/relhist/chronos_relhist.cpp)
-target_link_libraries(chronos-relhist PRIVATE t5d_core)
+# ---- Fractal's Phase 0 tools (new code, not copied) ---------------------------------
+
+add_executable(fractal-bench tools/bench/fractal_bench.cpp)
+target_link_libraries(fractal-bench PRIVATE t5d_tools)
+string(TOUPPER "${CMAKE_BUILD_TYPE}" FRACTAL_BUILD_TYPE_UPPER)
+string(STRIP "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${FRACTAL_BUILD_TYPE_UPPER}}" FRACTAL_FLAGS_TEXT)
+target_compile_definitions(fractal-bench PRIVATE
+  "FRACTAL_BUILD_TYPE=\"${CMAKE_BUILD_TYPE}\""
+  "FRACTAL_CXX_FLAGS=\"${FRACTAL_FLAGS_TEXT}\""
+  "FRACTAL_COMPILER=\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\"")
+
+add_executable(fractal-relhist tools/relhist/fractal_relhist.cpp)
+target_link_libraries(fractal-relhist PRIVATE t5d_core)
+
+add_executable(fractal-legality tools/bench/fractal_legality.cpp)
+target_link_libraries(fractal-legality PRIVATE t5d_core)
+target_compile_definitions(fractal-legality PRIVATE
+  "FRACTAL_BUILD_TYPE=\"${CMAKE_BUILD_TYPE}\""
+  "FRACTAL_CXX_FLAGS=\"${FRACTAL_FLAGS_TEXT}\""
+  "FRACTAL_COMPILER=\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\"")
 
 # ---- MinGW: no dependence on the toolchain's runtime DLLs ---------------------------
 #
@@ -202,7 +228,7 @@ target_link_libraries(chronos-relhist PRIVATE t5d_core)
 
 if(MINGW)
   target_link_options(t5d PRIVATE -static-libgcc -static-libstdc++ -static)
-  foreach(exe t5d-tests t5d-gate chronos-bench chronos-relhist)
+  foreach(exe t5d-tests t5d-gate fractal-tests fractal-bench fractal-relhist fractal-legality)
     target_link_options(${exe} PRIVATE -static)
   endforeach()
 endif()

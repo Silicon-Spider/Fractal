@@ -1,8 +1,8 @@
-// Chronos provenance: copied from Temporal-5D (https://github.com/Silicon-Spider/temporal-5d)
+// Fractal provenance: copied from Temporal-5D (https://github.com/Silicon-Spider/temporal-5d)
 //   source: engine/src/search.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
-//   copied: 2026-11-08 (Chronos spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  unchanged: below this header the file is byte for byte the source
+//   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
+//   state:  changed: a kept action's text is written only when two actions reach one state; PositionSet takes its state by value (spec 3.3 item 6); see PROVENANCE.md
 // Legal actions and mate detection: the public entry points, what both
 // detectors share, and the naive detector (see t5d/search.hpp). Rule IDs refer
 // to the rulebook, docs/rules/README.md. Written from the rulebook and the
@@ -43,11 +43,11 @@ std::size_t position_bytes(const GameState& start) {
   return sizeof(GameState) + table + (playable + 1) * changed + 128;
 }
 
-std::pair<std::size_t, bool> PositionSet::insert(const GameState& s) {
+std::pair<std::size_t, bool> PositionSet::insert(GameState s) {
   const std::uint64_t key = s.zobrist();
   const auto [it, fresh] = first_.try_emplace(key, states_.size());
   if (fresh) {
-    states_.push_back(s);
+    states_.push_back(std::move(s));
     return {states_.size() - 1, true};
   }
   if (same_position(states_[it->second], s)) return {it->second, false};
@@ -57,7 +57,7 @@ std::pair<std::size_t, bool> PositionSet::insert(const GameState& s) {
     if (same_position(states_[i], s)) return {i, false};
   }
   others.push_back(states_.size());
-  states_.push_back(s);
+  states_.push_back(std::move(s));
   return {states_.size() - 1, true};
 }
 
@@ -103,7 +103,7 @@ bool SearchRun::record(const GameState& after, const std::vector<Move>& moves) {
   GameState successor = after;
   successor.submit(CheckRuling::none());  // legal: the caller tested C4
   const bool even = after.multiverse().even();
-  const auto [index, fresh] = successors.insert(successor);
+  const auto [index, fresh] = successors.insert(std::move(successor));
   if (unit == Unit::Actions) {
     // An action is its set of moves with its creations in order: counted once,
     // whatever order its other moves were found in.
@@ -126,15 +126,22 @@ bool SearchRun::record(const GameState& after, const std::vector<Move>& moves) {
   if (fresh) {
     if (keep_actions || actions.empty()) {
       actions.push_back(moves);
-      texts.push_back(keep_actions ? action_text(moves, even) : std::string());
+      // The kept action's text is written when a second action reaches its
+      // state and the two must be compared (below), not before: a search that
+      // reads every turn it is given never needs most of them (Fractal's
+      // change). Its bytes are counted by an estimate, a move's text at 24.
+      texts.emplace_back();
       results.push_back(index);
-      kept_bytes += moves.size() * sizeof(Move) + texts.back().size() + 96;
+      kept_bytes += moves.size() * (sizeof(Move) + (keep_actions ? 24 : 0)) + 96;
     }
     if (successors.size() >= cap) {
       reached_cap = true;
       return false;
     }
   } else if (keep_actions) {
+    // No action has an empty text but the one with no moves, whose text is
+    // written again each time at no cost.
+    if (texts[index].empty()) texts[index] = action_text(actions[index], even);
     std::string text = action_text(moves, even);
     if (text < texts[index]) {
       texts[index] = std::move(text);

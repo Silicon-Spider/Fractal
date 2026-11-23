@@ -1,8 +1,8 @@
-// Chronos provenance: copied from Temporal-5D (https://github.com/Silicon-Spider/temporal-5d)
+// Fractal provenance: copied from Temporal-5D (https://github.com/Silicon-Spider/temporal-5d)
 //   source: engine/src/search_internal.hpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
-//   copied: 2026-11-08 (Chronos spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  unchanged: below this header the file is byte for byte the source
+//   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
+//   state:  changed: PositionSet::insert takes its state by value; a kept action's text is written late (spec 3.3 item 6); see PROVENANCE.md
 // What the two detectors share (src/search.cpp, src/hypercuboid.cpp): the
 // budget's accounting, a set of positions keyed by the Zobrist key, and the
 // collection of legal successor states. Internal to the engine.
@@ -100,7 +100,7 @@ std::size_t position_bytes(const GameState& start);
 class PositionSet {
  public:
   /// Adds `s`; returns its index and whether it was new.
-  std::pair<std::size_t, bool> insert(const GameState& s);
+  std::pair<std::size_t, bool> insert(GameState s);
   std::size_t size() const noexcept { return states_.size(); }
   const GameState& operator[](std::size_t i) const noexcept { return states_[i]; }
   void reserve(std::size_t n) { states_.reserve(n); }
@@ -158,7 +158,9 @@ struct SearchRun {
   PositionSet successors;
   std::unordered_set<std::string> action_keys;
   /// Kept actions (all of them if keep_actions; else the first), their
-  /// canonical texts and their successors' indices into `successors`.
+  /// canonical texts and their successors' indices into `successors`. Counting
+  /// successors, a kept action's text stays empty until a second action
+  /// reaches its state (record()).
   std::vector<std::vector<Move>> actions;
   std::vector<std::string> texts;
   std::vector<std::size_t> results;
