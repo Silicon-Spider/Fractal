@@ -2,7 +2,9 @@
 """Check every file Fractal copied from Temporal-5D against PROVENANCE.md.
 
 For each row of the "Copied files" table:
-- a "record only" file must hash to its source SHA-256;
+- a "record only" file must hash to its source SHA-256, unless the file is listed
+  under "Changes since the copy", whose table gives the SHA-256 the whole file has
+  now (something pins these files' bytes, so they carry no header to say so);
 - a "header" file must start with its provenance header (after a shebang, where
   there is one), and the bytes below the header must hash to its source SHA-256,
   unless the file is listed under "Changes since the copy", whose table gives the
@@ -16,7 +18,8 @@ gets in under cover of the copy (NF11, NF12).
 It needs nothing but the repository: no clone of Temporal-5D (NS2).
 Usage: python tools/check_provenance.py [--root DIR]
        python tools/check_provenance.py --hash PATH...   the SHA-256 of each file's
-           bytes below its header, for a "Changes since the copy" row
+           bytes below its header (of the whole file, for a record-only one), for
+           a "Changes since the copy" row
 Exit status 0 when every file checks, 1 otherwise.
 """
 from __future__ import annotations
@@ -99,19 +102,21 @@ def main() -> int:
                     help="print the SHA-256 of each file's bytes below its provenance header, and stop")
     a = ap.parse_args()
     root = Path(a.root)
+    sec = sections((root / "PROVENANCE.md").read_text(encoding="utf-8"))
+    rows = [m.groups() for line in sec.get("Copied files", []) if (m := ROW.match(line))]
     if a.hash:
+        record_only = {path for path, mode, _, _ in rows if mode == "record only"}
         status = 0
         for path in a.hash:
             rel = Path(path).as_posix()
-            body, why = body_below_header(rel, (root / rel).read_bytes())
+            data = (root / rel).read_bytes()
+            body, why = (data, "") if rel in record_only else body_below_header(rel, data)
             if body is None:
                 print(f"FAIL     {rel}: {why}")
                 status = 1
             else:
                 print(f"{hashlib.sha256(body).hexdigest()}  {rel}")
         return status
-    sec = sections((root / "PROVENANCE.md").read_text(encoding="utf-8"))
-    rows = [m.groups() for line in sec.get("Copied files", []) if (m := ROW.match(line))]
     changed = {m.group(1): m.group(2) for line in sec.get("Changes since the copy", [])
                if (m := CHANGED_ROW.match(line))}
     failures = 0
@@ -123,7 +128,10 @@ def main() -> int:
             failures += 1
             continue
         data = f.read_bytes()
-        if mode == "record only":
+        if mode == "record only" and path in changed:
+            ok = hashlib.sha256(data).hexdigest() == changed[path]
+            why = "bytes differ from the recorded change"
+        elif mode == "record only":
             ok = len(data) == int(size) and hashlib.sha256(data).hexdigest() == digest
             why = "bytes differ from the source"
         else:

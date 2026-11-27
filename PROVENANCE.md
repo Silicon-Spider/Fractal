@@ -44,7 +44,7 @@ The spec lists the modules, the 64 test files, the harness, the rulebook and t0d
 
 ## Changes since the copy
 
-Each changed file's header says so in its `state:` line. The tables give the SHA-256 of the bytes below each header now; `python tools/check_provenance.py --hash PATH` prints it.
+Each changed file's header says so in its `state:` line. The tables give the SHA-256 of the bytes below each header now, or of the whole file for a record-only one, which has no header to say so; `python tools/check_provenance.py --hash PATH` prints it.
 
 ### Before G0
 
