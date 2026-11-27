@@ -63,6 +63,7 @@ A pin, an inventory or a baseline is recorded again only on purpose, by its own 
 - The adapters and drivers (`oracles/oracle_harness/adapters/`, `headers.py`, `fingerprint.py`, `oracles/drivers/`), in passing. Editing one, even a comment, makes the golden files stale, and recording them again takes about half an hour on a quiet machine.
 - Never run `git submodule update --init --recursive`: the oracles' own submodules aren't needed, and one is declared with an SSH URL. Use `python oracles/harness.py sync`.
 - The release tier. It fails on findings inherited from Temporal-5D's recordings, and no budget fixes them (spec §3.5).
+- Anything under `.claude/`. `.claude/settings.json` denies agents force-pushes, GitHub writes that bypass review, `gh pr merge --admin`, and changes to branch protection and rulesets (G1a ruling 6). Its owner sets it, as the owner sets branch protection; an agent never edits it to get a command through.
 
 ## Before you report a change as done
 

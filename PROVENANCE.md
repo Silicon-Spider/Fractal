@@ -86,6 +86,7 @@ Files in directories that hold copied files, written for Fractal and not copied 
 - t0database: MIT. The licence, `data/t0database/LICENSE`, stays with the data.
 - `oracles/drivers/ftxi/ftxi_driver.cpp` adapts code from ftxi's `tools/position_tools.cpp` under the BSD 2-Clause licence. The notice is inside the file. It stays as a test-only program the engine never links (G0's ruling 2, `docs/gates/G0-rulings.md`).
 - `AGENTS.md`, `CONTRIBUTING.md` and `.github/CODEOWNERS` restate Temporal-5D's rules and procedures for the oracle harness in Fractal's terms. They are written for Fractal, not copied.
+- `.claude/settings.json` holds the eleven deny rules of Temporal-5D's `.claude/settings.json` at the pin (force-pushes, and three GitHub tools that write files without a pull request), and Fractal's own rules after them: `gh pr merge --admin`, and `gh api` writes to branch protection and rulesets (G1a ruling 6). Nothing else in that file came across: its hooks, status line and allow list belong to Temporal-5D's tooling.
 
 ## Copied files
 

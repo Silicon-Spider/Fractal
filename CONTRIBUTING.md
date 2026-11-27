@@ -53,4 +53,4 @@ The corpus is a manifest, not a folder of copies. A third-party record is named 
 
 ## Review
 
-`.github/CODEOWNERS` puts `oracles/` and `.github/` under their owner's review: the harness holds the recorded answers, and the workflows decide which checks run. It binds once branch protection on `main` requires a review from a code owner and the CI jobs as status checks. Until then it only requests one, so run the checks yourself.
+`.github/CODEOWNERS` puts `oracles/`, `.github/` and `.claude/` under their owner's review: the harness holds the recorded answers, the workflows decide which checks run, and `.claude/settings.json` holds the deny list that keeps agents from force-pushing, merging past review and changing branch protection. It binds once branch protection on `main` requires a review from a code owner and the CI jobs as status checks. Until then it only requests one, so run the checks yourself.
