@@ -2,7 +2,7 @@
 
 1 November 2026 · Fergus
 
-107 decisions (66 committed, 41 provisional), plus 27 arms, 13 refusals and 9 predictions, for the [design spec](SPEC.md). Revised on 15 November 2026 after G0: IDs kept their meaning, new rows took new IDs, and `docs/gates/G0-rulings.md` gives the evidence for every change. (The rewrite of 7 November renumbered the IDs, so references older than that don't carry over.)
+109 decisions (68 committed, 41 provisional), plus 27 arms, 13 refusals and 9 predictions, for the [design spec](SPEC.md). Revised on 15 November 2026 after G0: IDs kept their meaning, new rows took new IDs, and `docs/gates/G0-rulings.md` gives the evidence for every change. Revised again on 27 November 2026 on the rulings in `docs/gates/G1a-rulings.md`, in the same way. (The rewrite of 7 November renumbered the IDs, so references older than that don't carry over.)
 
 - **Status:** committed rows hold unless a gate or test match overturns them; provisional rows wait on the gate named.
 - **Class:** committed-class decisions get expensive to change once code depends on them; retrofittable ones can change later.
@@ -10,7 +10,7 @@
 
 ## Scope, principles and rules engine
 
-Nineteen rows: 19 committed and 0 provisional.
+Twenty-one rows: 21 committed and 0 provisional.
 
 | ID | Decision | Status | Class | Gate | Spec |
 | --- | --- | --- | --- | --- | --- |
@@ -27,12 +27,14 @@ Nineteen rows: 19 committed and 0 provisional.
 | P6 | Self-taught: nets train only on this engine's own searches and results | Committed | Committed-class | — | §2 |
 | P7 | Untrained first: G1 passes before anything trains, with the bootstrap net for play and test nets for exactness and cost | Committed | Committed-class | — | §2 |
 | P8 | Borrowed code passes its own tests unchanged before any change, then after each | Committed | Committed-class | — | §2 |
-| NR1 | Copy Temporal-5D's rules engine at a pinned commit, with its tests, harness, rulebook and t0database: done at `c8a9c49` | Committed | Committed-class | — | §3.1 |
+| NR1 | Copy Temporal-5D's rules engine at a pinned commit, with its tests, harness, rulebook and t0database: done at `c8a9c49`, whose tree, `ce35e1e5`, is the pin of record since Temporal-5D's history was rewritten | Committed | Committed-class | — | §3.1 |
 | NR2 | Don't copy transformer, MCTS or verification-layer code | Committed | Retrofittable | — | §3.2 |
-| NR3 | Review checklist before any change, applied one item at a time in the order G0's review set | Committed | Retrofittable | G1 | §3.3 |
+| NR3 | Review checklist before any change, applied one item at a time in the order G0's review set, with the royal-capture scan added and done first, then item 6's first step (G1a ruling 1) | Committed | Retrofittable | G1 | §3.3 |
 | NR4 | Rulings R1–R11 bind; the engine keeps its own rulebook, and Fractal's decisions replace the Temporal-5D conventions it cites | Committed | Committed-class | — | §3.1 |
 | NR5 | Every copied file has its provenance recorded in PROVENANCE.md, and in a header where the file can carry one; later fixes merged by hand and recorded | Committed | Retrofittable | — | §3.4 |
 | NR6 | The gate: five pinned oracles as test-time submodules; the commit tier in CI, the nightly tier before a change to copied code merges; the release tier unused | Committed | Retrofittable | G1 | §3.5 |
+| NR7 | A faster routine that takes over from a copied one keeps the copied one as its reference, held equal by test on random positions, on recorded games and case by case | Committed | Retrofittable | G1 | §3.3 |
+| NR8 | A Fractal-owned copy check under `tools/` for the engines the harness doesn't pin (Stockfish, YaneuraOu, Lc0, KataGo, dlshogi, Temporal-5D's §3.2 parts), from pinned sources in a cache outside the tree that only the tool reads: exact lines, and token runs with identifiers ignored; in place before part b | Committed | Retrofittable | G1 | §3.5 |
 
 ## Position, turns and search
 
@@ -201,7 +203,7 @@ Thirteen refusals. Each holds unless the principle or decision it rests on chang
 | NF9 | GPU inference | NS1 | §15.2 |
 | NF10 | Any dependency of the engine's build, or of the running engine, on Temporal-5D, Kairos or an oracle | NS2 | §0, §3.5 |
 | NF11 | Copying Temporal-5D code built for the transformer or MCTS | NS3 | §3.2 |
-| NF12 | Copying or porting code from Kairos, Stockfish, Lc0, KataGo, dlshogi, YaneuraOu or the oracles into the engine, its tools or its trainer; the harness's test drivers keep their notices | NS4 | §3.5, §13.3 |
+| NF12 | Code from Kairos, Stockfish, Lc0, KataGo, dlshogi, YaneuraOu or the oracles in the engine, its tools, its tests or its trainer, copied or ported; the harness's test drivers keep their notices | NS4, NR8 | §3.5, §13.3 |
 | NF13 | Exact per-move legality in the search loop | NT2; it has taken up to 200 s for one position at 600 boards | §5.2 |
 
 ## Predictions
@@ -222,9 +224,11 @@ Nine predictions, written down before their tests run.
 
 ## Open items
 
-- **Phase 1** is the next step (spec §14.2), starting with the oracle checkouts and the nightly tier, which are not yet in place (NR6).
-- **Branch protection on `main`** is not yet switched on (spec §3.6).
-- **The ftxi oracle pin** predates ftxi's 14 October 2026 change to the check rule that R1 uses; refreshing a pin changes copied harness files (NR5).
+- **Phase 1, part a** continues (spec §14.2): ftxi's pin bump and both tiers again, the two tests of §3.3 item 8, the tests of §3.6 still owed, then items 7, 6b to 6d and 1 (NR3, NR6). G1a has not passed, and pull request #2 stays open until it does.
+- **Branch protection on `main`** is not yet switched on; Fergus sets it (spec §3.6, G1a ruling 6).
+- **The ftxi oracle pin** moves to v0.5.2, past ftxi's 14 October 2026 change to the check rule that R1 uses, as a change of its own (G1a ruling 2, NR6).
+- **The copy check of NR8,** before part b's first commit.
+- **Unused copied files** stay until G1 closes, then go in one recorded change (spec §3.1, G1a ruling 5).
 - **The oracle corpus:** even the nightly tier gates only Half Reflected among the gen-1 variants, and Defended Pawn has no record; grow the corpus from t0database (NR6).
 - **Mate certificates:** the copied certificate module cannot build without the prover, so NM5 uses the detector; decide in Phase 3 whether to write a Fractal-owned checker.
 - **Generator budget size,** set at G1 from positions in Fractal's own search trees (NT5).
@@ -234,12 +238,19 @@ Nine predictions, written down before their tests run.
 - **NX2's list of counts,** written before G3.
 - **Auxiliary targets:** which to train first (NL8).
 - **Browser build:** WASM through Emscripten, threads, and the net budget (NE3).
-- **Fergus's living docs:** this revision was made in the repository, so they need the same changes before the next export.
+- **Fergus's living docs:** both revisions were made in the repository, so they need the same changes before the next export.
 
 ## Reversals log
 
 | Date | Was | Now | Why |
 | --- | --- | --- | --- |
+| 2026-11-27 | §3.3 in G0's order: the safety net, then items 7, 6, 1 | The safety net, then the royal-capture scan (new item 8) and item 6's first step, then 7, the rest of 6, and 1 (NR3) | G1a ruling 1: the scan was done ahead of the checklist on Fergus's request to speed up legality checking; ratified, on condition of two more tests |
+| 2026-11-27 | No rule for a faster routine replacing a copied one | The copied routine stays as the reference, held equal by test (NR7) | G1a proposal 9; the set scan and the line scan in `check.cpp` set the pattern |
+| 2026-11-27 | Item 6's target: 90% fewer heap allocations per node | 90% on construction and on the eight-turn node: 181 to 18 or fewer, 519 to 51 or fewer, asserted by test (§3.3 item 6) | Ruled with G1a: "per node" named no workload |
+| 2026-11-27 | The pin named by its commit id | The tree id is the pin of record; the headers keep `c8a9c49` (NR1, NR5) | G1a ruling 3: Temporal-5D's history was rewritten, and every commit id changed |
+| 2026-11-27 | Engines the harness doesn't pin left to the written rule | A Fractal-owned copy check against them, before part b (NR8, NF12) | G1a ruling 4 |
+| 2026-11-27 | NF12 covered the engine, its tools and its trainer | Its tests too, copied or ported (NF12) | G1a proposal 8 |
+| 2026-11-27 | ftxi pinned at v0.4.10 | v0.5.2 (NR6) | G1a ruling 2: three later ftxi commits fix rules the commit tier compares |
 | 2026-11-15 | The engine was called Chronos | Fractal (NS1) | Renamed by Fergus; the repository, tools and build option follow |
 | 2026-11-15 | No oracle checkouts; G0's "gate passes unchanged" unmet | Five pinned oracles as test-time submodules; commit tier in CI, nightly before copied code merges; release tier unused (NS2, NF10, NR6, NM1) | G0 ruling 1: CI compared the engine with an oracle at no position, and the register already kept Kairos as a harness oracle |
 | 2026-11-15 | NF12 refused every oracle's code; "sole copyright" | The harness's test drivers keep their notices; NE5 names the MIT data and the BSD-noticed driver (NF12, NE5) | G0 ruling 2 |

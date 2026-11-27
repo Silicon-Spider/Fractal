@@ -1,6 +1,6 @@
 # Fractal build prompt
 
-Paste this into Claude Code at the root of the Fractal folder, or tell it: "Read docs/BUILD_PROMPT.md and follow it." Phase 0 is done (`docs/gates/G0.md`); the next session starts Phase 1.
+Paste this into Claude Code at the root of the Fractal folder, or tell it: "Read docs/BUILD_PROMPT.md and follow it." Phase 0 is done (`docs/gates/G0.md`), and Phase 1 is under way: G1a's first part report and its rulings are in `docs/gates/`.
 
 ## Your job
 
@@ -13,8 +13,11 @@ You work through the phases in order (spec §14), each ending at a gate. Keep go
 - `docs/SPEC.md`: the design and the source of truth for what to build. Section numbers (§) below refer to it.
 - `docs/DECISIONS.md`: the decision register. Every bracketed ID in the spec (NS, P, NR, NB, NT, NA, NI, NN, ND, NL, NE, NM, NX, NF, NQ) has a row there with its status, class and the gate that settles it.
 - `docs/gates/G0.md` and `docs/gates/G0-rulings.md`: what Phase 0 found, and the rulings and evidence behind the spec's revision of 15 November 2026.
+- `docs/gates/G1a-rules-review.md` and `docs/gates/G1a-rulings.md`: G1a's first part, and the rulings and the revision of 27 November 2026.
 - `docs/MEASUREMENTS.md`: the baselines every later speed result is compared with.
 - `CLAUDE.md`: standing rules for every session in this repo.
+- `AGENTS.md`: the rules about other engines, the oracles and the copied code, and the checks to run before a change is reported done.
+- `CONTRIBUTING.md`: the procedures around the oracle harness: changing a pin, the engine's baseline, adding records.
 - `docs/img/`: the architecture, network and roadmap diagrams, drawn by `tools/docs/diagrams.py`.
 
 The biggest risk is in §7.6. Kairos's pure net lost 255 Elo to its counts-fed net; the leading explanation is that nothing in it linked boards, and the record cannot isolate that cause. Fractal bets that attack relations replace the hand-crafted counts Kairos relied on. The family check at G2 and the board-only control at G3 measure that bet. If the result is weak, don't patch it with hand-crafted terms; arm NX2 is the only sanctioned fallback.
@@ -25,7 +28,7 @@ Never break these. Each cites the decisions it comes from.
 
 1. **Completely separate.** Nothing in the engine's build or in the running engine depends on Temporal-5D, Kairos or any other engine: no include, no link, no fetch at build time, no subprocess at run time [NS2, NF10]. The differential harness's pinned oracles are test fixtures: submodules under `oracles/third_party/`, run as separate programs in tests only (§3.5). A clone without submodules must build the engine and pass its own tests, and one CI job keeps proving it.
 2. **The rules engine was copied once, with provenance.** Every copied file has a row in `PROVENANCE.md`, and a header where the file can carry one [NR1, NR5]. Never copy anything in §3.2 [NF11]. Later Temporal-5D fixes are merged by hand and recorded.
-3. **No other engine's code.** Kairos, Stockfish, Lc0, KataGo, dlshogi, YaneuraOu and the oracle engines are ideas only; write your own implementation [NF12]. The harness's own test drivers keep the notices they came with.
+3. **No other engine's code, copied or ported,** in the engine, its tools, its tests or its trainer. Kairos, Stockfish, Lc0, KataGo, dlshogi, YaneuraOu and the oracle engines are ideas only; write your own implementation [NF12]. The harness's own test drivers keep the notices they came with.
 4. **Copied code proves itself.** Its tests and the gate's commit tier pass after every change, and the nightly tier passes before a change to copied code merges [P8, NM1, NR6]. Change copied code one checklist item at a time (§3.3).
 5. **One evaluator.** No hand-crafted eval as an input, overlay, blend, fallback, lazy-eval gate or second net [P1, P4, NF1, NF2]. Before training, the bootstrap net is the material path alone [NN8, NN13]. Unweighted rule-fact counts appear only in arm NX2. Piece values used to order captures come from the loaded net's material path, never a second table [NT4].
 6. **Self-taught.** Nets train only on Fractal's own searches and game results. t0database supplies start positions and a sanity check, never labels [P6, NF5]. Held-out games never supply a start, for self-play or for a match [ND8].
@@ -51,11 +54,11 @@ Three parts, each with its own branch, gate report and pull request. §14.2 is t
 
 **Part a, the rules engine (G1a).**
 
-1. The safety net first. Add the five pinned oracles as submodules under `oracles/third_party/` with `python oracles/harness.py sync` (never a recursive submodule update), build ftxi and the notation parser, and add a second CI job that runs `selftest`, `verify` and `gate --tier commit`. Keep the existing job free of submodules. Run `gate --tier nightly` on the desktop and record what it gates. Never run or try to fix the release tier (§3.5).
+1. The safety net first. Add the five pinned oracles as submodules under `oracles/third_party/` with `python oracles/harness.py sync` (never a recursive submodule update), build ftxi and the notation parser, and add a second CI job that runs `selftest`, `verify` and `gate --tier commit`. Keep the existing job free of submodules. Run `gate --tier nightly` on the desktop and record what it gates. Never run or try to fix the release tier (§3.5). Done at G1a's first part.
 2. Recover `test_search` by a recorded trim, cover the copied-code cases of `test_turn_state` and `test_capi_game` with new tests, add the generator pins, allocation counts and the construction-against-`next()` bench split, and make CI assert the number of tests per suite (§3.6). Ask Fergus to protect `main` with the CI jobs as required checks.
-3. Apply §3.3 in its order: item 7, then item 6 step by step, then item 1. After each: the copied tests, the commit tier, the pins and a bench entry in `docs/MEASUREMENTS.md`. Before each merge: the nightly tier.
+3. Apply §3.3 in the order §14.2 now gives: ftxi's pin bump and both tiers again, the tests owed, then item 7, items 6b to 6d, and item 1. After each: the copied tests, the commit tier, the pins and a bench entry in `docs/MEASUREMENTS.md`. Before each merge: the nightly tier.
 
-**Part b, the net (G1b).**
+**Part b, the net (G1b).** Before its first commit, the copy check of §3.5 [NR8].
 
 4. The relation-fact source over the unchanged movegen API (§3.3 item 4), tested against an independent reading through movegen.
 5. Board records and the content cache (§4, §8.2, §8.3); the inputs of §7 (pieces, relations by the reading of §7.3, placement, past boards); pooling, the head and five output stacks; the integer pipeline of §8.4 with scalar, AVX2, AVX-512 and NEON paths; the net file [NL5].
@@ -143,5 +146,5 @@ Push what you have and report when:
 ## Environment
 
 - Toolchain: C++20, g++ 13 or later or clang, CMake and Ninja; on Windows, MSYS2 ucrt64, where g++ 16.2 is installed on Fergus's machine. Tests need Python 3.12 or later and git, the native Windows builds rather than MSYS2's [NE6].
-- The oracle builds need more: Node 18 or later for the commit tier, and GHC 9.10.3 for the nightly tier's cwmtt, which `python oracles/harness.py build --bootstrap` fetches.
+- The oracle builds need more: Node 18 or later for the commit tier, and GHC 9.10.3 for the nightly tier's cwmtt, which `python oracles/harness.py build --bootstrap --oracle cwmtt --oracle chessin5d` fetches. Name the oracles: a bare `build` also builds Kairos, which is pinned but never built (§3.5).
 - A read-only clone of Temporal-5D at the pin is useful for its manual and logs. The build must never refer to it.

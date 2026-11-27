@@ -4,7 +4,7 @@
 
 ## 0. Status and scope
 
-Revised 15 November 2026, after G0. Phase 0 is done: the rules engine is copied at Temporal-5D `c8a9c49`, builds with three toolchains on two platforms and passes the 344 of its default tests that can build (`docs/gates/G0.md`). Phase 1, optimise and build, is next. The rulings on G0 and the evidence for every decision this revision changed are in `docs/gates/G0-rulings.md`. Every bracketed ID has a row in the [decision register](DECISIONS.md).
+Revised 15 November 2026, after G0, and 27 November 2026, after G1a's first part report. Phase 0 is done: the rules engine is copied at Temporal-5D `c8a9c49`, builds with three toolchains on two platforms and passes the 344 of its default tests that can build (`docs/gates/G0.md`). Phase 1, optimise and build, is under way: G1a's first part is reported in `docs/gates/G1a-rules-review.md`. The rulings on G0 and the evidence for every decision the first revision changed are in `docs/gates/G0-rulings.md`; the rulings on G1a's first part and the second revision are in `docs/gates/G1a-rulings.md`. Every bracketed ID has a row in the [decision register](DECISIONS.md).
 
 **What it is.** A new engine for 5D Chess With Multiverse Time Travel: alpha-beta search over whole turns, evaluated by an NNUE that reads the boards themselves. CPU only, C++20, its own repo [NS1].
 
@@ -71,7 +71,7 @@ C++20 from Temporal-5D commit `c8a9c49` (head of `main`, 8 November 2026), copie
 | rules, variants, state | 1,811 | Rulesets, variants, the present and the turn state machine |
 | move, movegen | 1,106 | Pseudo-legal moves by walks along compile-time direction tables. Defences, x-rays and pins come from the same pass for the colour to move on a head; any piece on any board can be asked for its moves alone |
 | attacks | 689 | Incremental royal-attack maps. Nothing in Fractal calls them (§3.3 item 5) |
-| check | 621 | Check status (R1) and submission legality, by a scan for royal captures |
+| check | 621 | Check status (R1) and submission legality. A set scan from the royals answers under the default rules, held equal to the copied line scan, which answers under the alternatives and wherever a witness is wanted (§3.3 item 8) |
 | search, legal | 1,740 | Legal-action listing and mate detection, including the depth-first detector. legal holds the per-move legality tiers and comes only because search includes it; the engine's search never calls it [NF13] |
 | hypercuboid, turngen | 2,423 | Best-first legal-turn generator (§5) |
 | fen, pgn | 2,722 | 5DFEN reader and writer; 5DPGN reader and replay. There is no 5DPGN writer |
@@ -88,6 +88,8 @@ Also copied:
 - the rulebook with rulings R1–R11 [NR4]. Register IDs inside it (H36, I11 and the like) are Temporal-5D's; where a ruling leans on a Temporal-5D convention, such as R5's turn cap, Fractal's own decision replaces it [ND13];
 - data/t0database with its MIT licence.
 
+Copied files that nothing uses stay until G1 closes: `certificate`, `attacks`, the 21 test files for modules that were not copied, and the four headers only those tests include. Whatever is still unused then is removed in one recorded change, and its rows in `PROVENANCE.md` are marked removed (G1a ruling 5).
+
 ### 3.2 Not copied
 
 Transformer and MCTS code, and the verification layer built around Temporal-5D's search [NR2, NF11]:
@@ -99,23 +101,24 @@ Transformer and MCTS code, and the verification layer built around Temporal-5D's
 
 ### 3.3 Review checklist
 
-G0 reviewed the copied code against this list, one finding per item: expected gain, risk and the tests affected (`docs/gates/G0.md`). The items below are what the review left standing. Changes to copied code land one at a time, each followed by the copied test suite, the gate (§3.5) and a speed measurement [NR3, P8, NM6].
+G0 reviewed the copied code against this list, one finding per item: expected gain, risk and the tests affected (`docs/gates/G0.md`). Items 1 to 7 are what the review left standing; item 8 was added at G1a (ruling 1). Changes to copied code land one at a time, each followed by the copied test suite, the gate (§3.5) and a speed measurement [NR3, P8, NM6].
 
 1. **Board storage.** Boards, timelines and chunk lists are reference-counted handles; one physical move on a copied position costs three heap allocations and 2T + 2t + 2c count updates (T timelines, t the touched timeline's tail, c one for a full chunk), and on MinGW each update is a locked instruction. First each search thread builds its own root, which changes no copied code. Then allocation moves to per-thread pools behind the same handle types. Non-atomic handles come last, and only if pooling leaves 3% or more of node time [NB2].
 2. **Board state built lazily.** New code, outside the copied board: a per-thread record per board, built at first use from the board's lineage parent by comparing square codes (§8.2). `BoardBuilder` needs no change [NN9].
 3. **Cached embedding.** The 256 → 32 embedding and the material sums are kept in the same record, so pooling reads 32 cached numbers per board [NN2, NN13].
 4. **Relation facts.** A Fractal-owned source over the unchanged movegen API gives every relation of §7.3: captures from moves, defences from movegen's defence records, the other colour through passed copies. It is the reference for NM2 and NM3. A dedicated scan inside the rules engine may replace it for speed, held equal to it by test, as the check scan is held equal to the generator [NI3, P2].
 5. **Attack maps: not extended.** The royal-attack maps' update rule rests on boards never changing and appearing only where there was none. The relation reading's passed copies break both, and 70% of head boards are mandatory and so replaced every turn. The maps stay as copied and unused.
-6. **Turn generator.** Construction applies every non-branching candidate to a fresh copy of the position only to read which squares change. In order: change sets without allocation or publishing; per-thread pooled working memory; boards built at construction reused when a turn is realised. The search's scores are already integers (§5.3). The target is 90% fewer heap allocations per node, counted by a test [NT2].
+6. **Turn generator.** Construction applied every non-branching candidate to a fresh copy of the position only to read which squares change. In order: (6a) change sets without allocation or publishing; (6b) per-thread pooled working memory; (6d) boards built at construction reused when a turn is realised, with item 2. G0's 6c, integer scores, needs no change: the search's scores are already integers (§5.3). 6a is done (G1a): `move_edits` lists the squares a move changes without building a board, where G0 proposed stack builders. On t0database turn starts under 50 boards it took construction from 181 heap allocations to 37, and a node that builds a generator and takes eight turns from 519 to 318 (MEASUREMENTS entry 3). **Target:** 90% fewer on both measures, on the same positions: construction 18 or fewer, the eight-turn node 51 or fewer, asserted by test [NT2]. If 6b to 6d land short, the G1a report gives the measured figures and proposes a target.
 7. **Move lists.** Buffers reserved once per thread and reused, growing when a position overflows them. One t0database position has at least 626 moves, so a fixed size cannot hold.
+8. **Royal-capture scan.** Done (G1a, `ea9419e`). Check status and the submission test's scan go board by board from the royals with bitboards, under the default readings of Q18 and Q19, and check status reads the passed boards in place instead of building the passed multiverse. On human positions under 50 boards check status fell from 1.6 µs to 0.15–0.3 µs and the scan from 2.5 µs to 0.3–0.6 µs. The copied line scan stays as the reference [NR7]: it answers under the alternatives and wherever a witness is wanted, and tests hold the two equal on random multiverses, along seeded games and on a multiverse wider than the scan's pass table. Before G1a closes, two more tests hold check status read in place equal to the line scan on the passed multiverse: (i) 65 to 256 timelines, with passed timelines at table index 64 and above; (ii) passed boards with Q8 or Q20 off its default. Each must be shown to fail with its fault planted: (i) the pass table read from word 0 only; (ii) the passed copy of a board flagged as history.
 
-**Order of work:** the safety net of §3.5 and §3.6 first; then 7, 6, 1; then 2 and 3 with the net plumbing; then 4. Item 6 comes before item 1 because most of item 1's traffic comes from the copies item 6 removes.
+**Order of work:** the safety net of §3.5 and §3.6 first; then 8 and 6a, done in that order at G1a and ratified (ruling 1); then 7, 6b to 6d, and 1; then 2 and 3 with the net plumbing; then 4. Item 6 comes before item 1 because most of item 1's traffic comes from the copies item 6 removes. ftxi's pin moves before the next change to copied code (§3.5).
 
 ### 3.4 Copy process
 
 Steps 1 to 3 were Phase 0 and are done (G0).
 
-1. Pin one Temporal-5D commit. Copy the files above into the new repo. Every copied file has a row in `PROVENANCE.md` with its source path, commit and hash, and carries a five-line provenance header unless something pins its bytes or its format has no comments (39 of the 221 files) [NR5]. CI checks every row.
+1. Pin one Temporal-5D commit. Copy the files above into the new repo. Every copied file has a row in `PROVENANCE.md` with its source path, commit and hash, and carries a five-line provenance header unless something pins its bytes or its format has no comments (39 of the 221 files) [NR5]. CI checks every row. Temporal-5D's history was rewritten after the copy, to replace an e-mail address: `c8a9c49` is now `03eca7a` upstream, with the same tree. The tree ids in `PROVENANCE.md` are the pins of record, and the headers keep `c8a9c49` (G1a ruling 3).
 2. Remove capi's expansion and label entry points and the record types only they use. Change nothing else yet.
 3. Build, then run the copied tests and the gate unchanged [NM1].
 4. Apply the review checklist one item at a time (§3.3).
@@ -129,17 +132,19 @@ Licensing: Temporal-5D is yours outright under GPL-3.0, and its md5 was written 
 
 - **Oracles are test fixtures.** The five repositories pinned in `oracles/oracles.lock.toml` are checked out as git submodules under `oracles/third_party/` and run as separate programs, in tests only. Nothing outside `oracles/` reads, includes, links or fetches anything under it, and a clone without submodules builds the engine and passes the engine's own tests. One CI job keeps proving that [NS2, NF10].
 - **Kairos is pinned and never built.** The harness's copy check then compares every file in this repository against Kairos's source, which is how NF12 is policed against the one outside engine most like this one. The same check refuses Kairos's name in scripts and workflows outside `oracles/`, so the yardstick runner of NM11 lives there.
-- **What runs when.** `selftest`, `verify` and `gate --tier commit` run in CI on every push. `gate --tier nightly` runs on the desktop before each change to copied code merges, and at each gate report. At the pin, Temporal-5D's own CI ran the commit tier in 12 minutes and nightly in 25.
+- **A Fractal-owned copy check covers the engines the harness doesn't pin** [NR8]. A tool under `tools/`, in place before part b's first commit (G1a ruling 4), compares the tree with Stockfish, YaneuraOu, Lc0, KataGo, dlshogi and the parts of Temporal-5D that §3.2 leaves out. Their sources sit at pinned commits in a cache outside the tree, read by the tool and never by an agent. It matches exact lines, and runs of tokens with identifiers ignored, so that a paste with the names changed is caught. Any commit a reading pass opens is checked too. Nothing under `oracles/` changes for it.
+- **What runs when.** `selftest`, `verify` and `gate --tier commit` run in CI on every push, in the `gate` job, the one job that checks out the submodules. `gate --tier nightly` runs on the desktop before each change to copied code merges, and at each gate report. At the pin, Temporal-5D's own CI ran the commit tier in 12 minutes and nightly in 25.
 - **The release tier is not used.** It fails on 17 findings inherited from Temporal-5D's recordings, and no budget fixes them.
-- **What it covers.** Until the checkouts are in place CI compares the engine with an oracle at no position. With them, the commit tier checks about 1,000 positions against ftxi. Even nightly gates only Half Reflected among the gen-1 variants: Standard and Turn Zero are compared everywhere but stay ungated for corpus reasons, and Defended Pawn has no record. Growing the corpus from t0database is an open item.
+- **What it covers.** In place since G1a's first part: the checkouts are submodules, `verify` passes all eight sections, and the commit tier compares the engine with ftxi and the notation parser on 41 records. That tier gates no ruleset: it fails an engine on a disagreement, or on a record the engine read on the last green run and now declines. The nightly tier gates Standard - Half Reflected and Standard - Reversed Royalty, one record each. Standard and Turn Zero are compared everywhere but stay ungated for corpus reasons, and Defended Pawn has no record. Growing the corpus from t0database is an open item.
 - **The oracle driver for ftxi** carries code adapted from ftxi under its BSD 2-Clause notice. It stays, as a test-only program the engine never links [NF12].
+- **ftxi's pin** moves from v0.4.10 to v0.5.2 (`e6cf824`), as a change of its own by the procedure in `CONTRIBUTING.md`, before any further change to copied code (G1a ruling 2). Three of ftxi's commits since v0.4.10 bear on rules the commit tier compares: Black's pawn and brawn moves, the boards check status passes, and royal safety on a checked submission.
 
 ### 3.6 Tests of copied code
 
-- **Recovered tests.** 24 copied test sources cannot build because they include an uncopied module. Three of them test copied code: `test_search` (22 tests, among them the three that hold "never mate on a budget stop"), `test_turn_state` (3) and `test_capi_game` (12). `test_search` is recovered by trimming its one case that calls uncopied code, the trim recorded in the file's provenance line and in `PROVENANCE.md`. The copied-code cases of the other two are covered by new Fractal-owned tests, since nothing built today exercises the C API's game calls.
-- **Pins added before any copied code changes:** a hash of the best-first generator's output, node counts included, on every CI target; allocation counts per generated turn; a split of generator time into construction and `next()`; a test that stops a generator mid-run.
-- **New Fractal-owned tests:** relations equal an independent reading through movegen before anything relies on them; generator exhaustion equals the depth-first detector on every t0database turn start.
-- **Test inventory.** CI asserts the number of tests run per suite, so a test cannot drop out silently. `main` takes changes only through pull requests with green CI: branch protection, with the CI jobs as required checks.
+- **Recovered tests.** 24 copied test sources cannot build because they include an uncopied module. Three of them test copied code: `test_search` (22 tests, among them the three that hold "never mate on a budget stop"), `test_turn_state` (3) and `test_capi_game` (12). `test_search` was recovered at G1a by trimming its one case that calls uncopied code (34 lines), the trim recorded in the file's provenance line and in `PROVENANCE.md`. The copied-code cases of the other two are to be covered by new Fractal-owned tests, since nothing built today exercises the C API's game calls.
+- **Pins, added at G1a before any copied code changed** (`tests/test_legality.cpp`): a hash of the best-first generator's output with its node counts, and a hash of the check verdicts, the same on every CI target; a test that stops a generator mid-run. `fractal-legality` splits generator time into construction and `next()` and counts heap allocations per turn; the allocation target of §3.3 item 6 is asserted by test.
+- **Fractal's own tests** are in `tests/` and build as `fractal-tests`, beside the copied suite, `t5d-tests`. In place: the set scan equals the line scan (§3.3 item 8), with the two tests that item still owes; generator exhaustion equals the depth-first detector, on the pins' samples in `fractal-tests` and on every t0database turn start in CI's `fractal-legality --verify`. Still to come, in part b: relations equal an independent reading through movegen before anything relies on them.
+- **Test inventory.** CI asserts the number of tests run per suite (`tools/inventory/`), so a test cannot drop out silently. `main` takes changes only through pull requests with green CI: branch protection, with the CI jobs as required checks.
 
 ## 4. Position and boards
 
@@ -168,19 +173,21 @@ Temporal-5D's hypercuboid generator, copied [NT2]. Its contract, as the search u
 - **Legality.** It yields only legal turns, each once, and each carries its successor position. The search never applies moves to find out whether they are legal [NF13].
 - **End.** `exhausted()` means every legal turn has been emitted; with none emitted, it proves the mover has no legal turn. `stopped()` means the budget ended the search first, and proves nothing (§5.4).
 
-Phase 0 measured the copied generator before any change (G0; MEASUREMENTS entries 1 and 2; one thread of a Ryzen 9 9900X). Buckets are human positions with under 50, 50–99 and 100–199 boards.
+Phase 0 measured the copied generator before any change (G0; MEASUREMENTS entries 1 and 2; one thread of a Ryzen 9 9900X). G1a measured it again on the same machine after §3.3 item 8, item 6a and two smaller savings (entry 3). Buckets are human positions with under 50, 50–99 and 100–199 boards.
 
-| Measurement | Result |
-| --- | --- |
-| Pseudo-legal movegen | 1.6 / 2.5 / 3.5 µs per position |
-| First legal turn (construction plus the first `next()`), median | 16.6 / 40.0 / 73.5 µs |
-| Each further turn, median | 2.8 / 4.7 / 6.9 µs |
-| First legal turn on synthetic positions of 100 to 600 boards, median | 0.7 to 15.5 ms; one position took 101 ms |
-| Turn starts with at least 1,000 legal turns, among those with any | 12% / 46% / 70% |
-| Near mate on 5 timelines, depth-first detector (`detect_mate`) | 184 nodes in 75 µs; naive enumeration 817,875 nodes |
-| The same proof by the best-first generator | 796 nodes in 464 µs |
+| Measurement | As copied (G0) | After G1a's first part |
+| --- | --- | --- |
+| Pseudo-legal movegen | 1.6 / 2.5 / 3.5 µs per position | Unchanged |
+| Check status (R1); measured on the engine as copied in entry 3 | 1.6 / 2.3 / 3.3 µs | 0.15–0.3 / 0.26 / 0.28 µs |
+| The submission test's scan, on a generated successor; likewise | 2.5 / 3.2 / 4.3 µs | 0.3–0.6 / 0.40 / 0.43 µs |
+| First legal turn (construction plus the first `next()`), median | 16.6 / 40.0 / 73.5 µs | 6.7 / 18.4 / 36.0 µs |
+| Each further turn, median | 2.8 / 4.7 / 6.9 µs | 1.7 / 2.7 / 3.7 µs |
+| First legal turn on synthetic positions of 100 to 600 boards, median | 0.7 to 15.5 ms; one position took 101 ms | 0.34 to 14.3 ms |
+| Turn starts with at least 1,000 legal turns, among those with any | 12% / 46% / 70% | — |
+| Near mate on 5 timelines, depth-first detector (`detect_mate`) | 184 nodes in 75 µs; naive enumeration 817,875 nodes | 184 nodes in 59 µs |
+| The same proof by the best-first generator | 796 nodes in 464 µs | 796 nodes in 433 µs |
 
-Construction dominates: the first turn costs as much as six to eleven further ones, because the generator applies every non-branching candidate to a copy of the position to read which squares change (§3.3 item 6).
+Construction dominated: the first turn cost as much as six to eleven further ones, because the generator applied every non-branching candidate to a copy of the position to read which squares change (§3.3 item 6). After item 6a it costs as much as four to ten.
 
 **Width is set by playable boards.** In 692 human games the mover had one mandatory board in 94% / 73% / 36% of turns, but more than one playable board in 15% / 65% / 99%, and played an optional board in only 1.2% / 2.5% / 1.1% (Temporal-5D's measurement log; the last bucket is 175 turns from 13 games). Most of a wide position's thousands of legal turns differ only in quiet moves on optional boards. An all-node therefore cannot be enumerated: what the search leaves out is decided by the option scores (§5.3) and the candidate set (§5.5).
 
@@ -654,7 +661,7 @@ Each is written down before its test runs. Those stated in Elo are measured by a
 
 ### 13.1 Temporal-5D
 
-The code copied under §3, at commit `c8a9c49`. Designs and measurements cited from its engine manual, build log and measurement log, read from a clone at the pin: turn width and how often optional boards are played, the best-first generator's failure on a wide position, the legality worst cases, and its proof-number mate solver's results in 5D.
+The code copied under §3, at commit `c8a9c49`: `03eca7a` upstream since Temporal-5D's history was rewritten, with the same tree, `ce35e1e5`, which is the pin of record (§3.4). Designs and measurements cited from its engine manual, build log and measurement log, read from a clone at the pin: turn width and how often optional boards are played, the best-first generator's failure on a wide position, the legality worst cases, and its proof-number mate solver's results in 5D.
 
 ### 13.2 Kairos's test record
 
@@ -685,7 +692,7 @@ Its standard test is an SPRT on (0, 5) in normalised Elo over pentanomial pairs,
 
 ### 13.3 Ideas from other engines
 
-Ideas only, no code [NF12]. Each enters as a provisional decision or an arm.
+Ideas only: no code, copied or ported [NF12]. Each enters as a provisional decision or an arm.
 
 | Engine | Idea | Used here |
 | --- | --- | --- |
@@ -762,7 +769,7 @@ Sources:
 | Phase | Work | Gate: passes when |
 | --- | --- | --- |
 | 0 · Copy and review | Done, 15 November 2026 (§14.1) | G0: merged. The gate criterion was unmet for want of oracle checkouts and is ruled on in §3.5 |
-| 1 · Optimise and build | In three parts. (a) The safety net of §3.5 and §3.6, then the review checklist one item at a time. (b) Net plumbing with the bootstrap and test nets: board records, relations, pooling, the integer pipeline on every target. (c) Search v1, 5DUCI and `bench` | G1, one report per part. **G1a:** NM1 holds after every item, with the commit tier in CI and nightly on the desktop; every pin is unchanged or re-recorded on purpose; the allocation target of §3.3 item 6 is met; speed is recorded after each item. **G1b:** NM2, NM4, NM14, NM17, NM18; microseconds per evaluation recorded, with the attack channel's cost for attacks alone and with defences [NM6]. **G1c:** NM15, NM16; determinism [NE4]; eval within NN12 |
+| 1 · Optimise and build | In three parts. (a) The safety net of §3.5 and §3.6, then the review checklist one item at a time. (b) Net plumbing with the bootstrap and test nets: board records, relations, pooling, the integer pipeline on every target. (c) Search v1, 5DUCI and `bench` | G1, one report per part. **G1a:** NM1 holds after every item, with the commit tier in CI and nightly on the desktop; every pin is unchanged or re-recorded on purpose; the two tests of §3.3 item 8 pass, and fail with their faults planted; the allocation target of §3.3 item 6 is met, or its measured figures and a proposed target are ruled on; speed is recorded after each item. **G1b:** NM2, NM4, NM14, NM17, NM18; microseconds per evaluation recorded, with the attack channel's cost for attacks alone and with defences [NM6]. **G1c:** NM15, NM16; determinism [NE4]; eval within NN12 |
 | 2 · Gen 1 | Bootstrap self-play; trainer, featuriser and integer reference; the offline checks | G2: the data floor of ND2 met, with §9.2's report and the cap rate under one game in five [NQ9]; parity [NM3]; a learning curve at a quarter, a half and all of the data; the family check run and applied [NM12]; the first four screens run (§15.1); the offline gate passed [NM9]; trainer throughput recorded |
 | 3 · Integrate | Gen-1 net in the search; the test-match runner, locally and on Actions; ablations of the imported heuristics; the quiescence arm; time management; board-only control; mate sets | G3: gen 1 beats the bootstrap net by measurement [NQ1]; each imported heuristic confirmed or dropped by its test (§12.3); board-only control measured [NQ2, NQ3]; NM5, NM7 |
 | 4 · Generations | Self-play with the latest net on a growing window; test matches on Actions; training on the desktop; arms | G4, each generation: the promotion test (§12.3) and the anchor matches; NETS.md updated [NL6] |
@@ -787,11 +794,11 @@ For the coding agent. One branch and one gate report per part; nothing trains un
 
 **Part a, the rules engine.**
 
-1. Add the five oracle checkouts as submodules under `oracles/third_party/`, build ftxi and the notation parser, and run `selftest`, `verify` and the commit tier in a second CI job. Keep the first job free of submodules. Run the nightly tier on the desktop and record what it gates (§3.5).
-2. Recover `test_search`, cover the copied-code cases of `test_turn_state` and `test_capi_game`, add the pins and the new tests of §3.6, and pin the test inventory in CI.
-3. Apply §3.3 in its order: item 7, item 6 step by step, item 1. After each: the copied tests, the commit tier, the pins and the bench, with the result in `docs/MEASUREMENTS.md`. Run the nightly tier before each merge.
+1. Add the five oracle checkouts as submodules under `oracles/third_party/`, build ftxi and the notation parser, and run `selftest`, `verify` and the commit tier in a second CI job. Keep the first job free of submodules. Run the nightly tier on the desktop and record what it gates (§3.5). Done (`docs/gates/G1a-rules-review.md`).
+2. Recover `test_search`, cover the copied-code cases of `test_turn_state` and `test_capi_game`, add the pins and the new tests of §3.6, and pin the test inventory in CI. `test_search`, the pins and the inventory are done; the rest is owed, with the two tests of §3.3 item 8.
+3. Apply §3.3 in its order. Items 8 and 6a are done. Next, ftxi's pin moves to v0.5.2 and both tiers run again on those items (§3.5); then the tests owed under step 2; then item 7, items 6b to 6d, and item 1. After each: the copied tests, the commit tier, the pins and the bench, with the result in `docs/MEASUREMENTS.md`. Run the nightly tier before each merge.
 
-**Part b, the net.**
+**Part b, the net.** The copy check of §3.5 is in place before its first commit [NR8].
 
 4. The relation-fact source through the unchanged movegen API (§3.3 item 4), with its tests.
 5. Board records and the content cache (§8.2, §8.3), the relation and placement inputs (§7), pooling, the head and the integer pipeline (§8.4) with scalar, AVX2, AVX-512 and NEON paths, and the net file [NL5].
@@ -807,7 +814,8 @@ For the coding agent. One branch and one gate report per part; nothing trains un
 ### 14.3 Rulings and revisions
 
 - **Every gate report ends with a rulings section:** each question the phase could not settle inside the hard rules, with the options and a recommendation. Fergus rules. A gate with an open ruling has not passed, and its pull request stays open.
-- **G0 was merged with one criterion unmet and five rulings open.** They are answered in `docs/gates/G0-rulings.md`, with the evidence for every decision this revision changed.
+- **G0 was merged with one criterion unmet and five rulings open.** They are answered in `docs/gates/G0-rulings.md`, with the evidence for every decision the first revision changed.
+- **G1a's first part report ended with six rulings,** answered on 27 November 2026 in `docs/gates/G1a-rulings.md`, which records the second revision. Pull request #2 stays open until G1a passes.
 - **The spec and the register change only at Fergus's request,** and each revision is recorded in `docs/gates/`. Coding sessions propose changes in gate reports; they do not edit either file.
 
 ## 15. Arms and refusals
@@ -866,5 +874,5 @@ Screens run in this order: NX4 (inside NM12), NX23, NX24, NX15, NX19, NX25, NX13
 | NF9 | GPU inference | CPU only [NS1] |
 | NF10 | Any dependency of the engine's build, or of the running engine, on Temporal-5D, Kairos or an oracle | NS2. The harness's pinned checkouts are test fixtures (§3.5) |
 | NF11 | Copying Temporal-5D code built for the transformer or MCTS | NS3 |
-| NF12 | Copying or porting code from Kairos, Stockfish, Lc0, KataGo, dlshogi, YaneuraOu or the oracles into the engine, its tools or its trainer | Ideas only. The harness's own test drivers keep the notices they came with (§3.5) |
+| NF12 | Code from Kairos, Stockfish, Lc0, KataGo, dlshogi, YaneuraOu or the oracles in the engine, its tools, its tests or its trainer, copied or ported | Ideas only: retyping another engine's logic, or pasting it with the names changed, is copying. The harness's own test drivers keep the notices they came with, and two copy checks police the rule (§3.5) |
 | NF13 | Exact per-move legality in the search loop | It has taken up to 200 s for one position at 600 boards. A turn is legal because the generator yielded it, the detector returned it, or it was replayed whole and passed the submission test |
