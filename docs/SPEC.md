@@ -4,7 +4,7 @@
 
 ## 0. Status and scope
 
-Revised 15 November 2026, after G0, and 27 November 2026, after G1a's first part report. Phase 0 is done: the rules engine is copied at Temporal-5D `c8a9c49`, builds with three toolchains on two platforms and passes the 344 of its default tests that can build (`docs/gates/G0.md`). Phase 1, optimise and build, is under way: G1a's first part is reported in `docs/gates/G1a-rules-review.md`. The rulings on G0 and the evidence for every decision the first revision changed are in `docs/gates/G0-rulings.md`; the rulings on G1a's first part and the second revision are in `docs/gates/G1a-rulings.md`. Every bracketed ID has a row in the [decision register](DECISIONS.md).
+Revised 15 November 2026, after G0; 27 November 2026, after G1a's first part report; and 28 November 2026, after an ideas pass on Stockfish and the other engines. Phase 0 is done: the rules engine is copied at Temporal-5D `c8a9c49`, builds with three toolchains on two platforms and passes the 344 of its default tests that can build (`docs/gates/G0.md`). Phase 1, optimise and build, is under way: G1a's first part is reported in `docs/gates/G1a-rules-review.md`. The rulings on G0 and the evidence for every decision the first revision changed are in `docs/gates/G0-rulings.md`; the rulings on G1a's first part and the second revision are in `docs/gates/G1a-rulings.md`; the ideas pass is `docs/gates/ideas-2026-11-27.md`, and the rulings on it and the third revision are in `docs/gates/ideas-2026-11-27-rulings.md`. Every bracketed ID has a row in the [decision register](DECISIONS.md).
 
 **What it is.** A new engine for 5D Chess With Multiverse Time Travel: alpha-beta search over whole turns, evaluated by an NNUE that reads the boards themselves. CPU only, C++20, its own repo [NS1].
 
@@ -497,7 +497,7 @@ The attack channel is the risk. Kairos dropped its own at about 3 µs per eval, 
 
 | Decision | Choice | Status |
 | --- | --- | --- |
-| Records [ND1] | Games, never features: a game's start and its turns, with one annotation per searched position (§9.1) | Committed |
+| Records [ND1] | Games, never features: a game's start and its turns, with one annotation per searched position, which has room for a list of search-tree samples, empty in gen 1 (§9.1) | Committed |
 | Gen 1 [ND2] | Self-play with the bootstrap net: at least 10M positions that pass the quiet filter, from at least 250,000 games; more if G2's learning curve is still falling | Provisional, G2 |
 | Gen 2 on [ND3] | Self-play with the latest promoted net. Training uses every generation so far until a size budget binds, then drops the oldest | Provisional, G4 |
 | Starts [ND4] | The engine's own opening generator for every variant, plus positions from t0database's start games, which are all Turn Zero (§9.2) | Provisional, G2 |
@@ -517,6 +517,8 @@ The attack channel is the risk. Kairos dropped its own at about 3 µs per eval, 
 A record is a game: its variant or initial boards, then its turns in the protocol's move form (§11). This is the only lossless form. 5DFEN board strings cannot carry the side to move, an en-passant square or who created a timeline, and a position rebuilt from them can differ in legal moves and in its key.
 
 Each position the engine searched carries: the score from the mover's side, depth and nodes, the best turn, the static eval, and flags: in check, best turn captures or promotes, the node budget class, and whether the score is proven, unproven or a mate. The game carries its result, how it ended (mate, stalemate or which cap) and its provenance [ND7].
+
+Each searched position also has room for a list of search-tree samples: turn starts from the principal variations of its search, each stored as the line of turns that reaches it, with its own score, depth and flags. The list is optional and stays empty in gen 1. Whether to fill it is arm NX31's question at G4; the room is reserved now because the format is expensive to change once gen-1 data exists.
 
 Positions are stored, never features, because features change with the net and positions don't [NF7]. Filters read the flags at load time, so one data set serves every filter and every input arm.
 
@@ -696,7 +698,7 @@ Ideas only: no code, copied or ported [NF12]. Each enters as a provisional decis
 
 | Engine | Idea | Used here |
 | --- | --- | --- |
-| Stockfish 18–19 | Threat inputs: pairs of attacker piece-square and victim piece-square, both colours, own and enemy victims, mutual pairs counted once, updated from the attacks that changed. About +30 Elo at fixed nodes for a net 5–15% slower on x86, and +13.9 ± 1.9 in an ARM long-time-control estimate. The first port, without incremental updates, lost 90 Elo. Stockfish 19 dropped king victims and pawn pairs (79,856 → 59,808 features) | Relations and their cost [NI3, NI4, NN3] |
+| Stockfish 18–19 | Threat inputs: pairs of attacker piece-square and victim piece-square, both colours, own and enemy victims, mutual pairs counted once, updated from the attacks that changed. About +30 Elo at fixed nodes for a net 5–15% slower on x86, and +13.9 ± 1.9 in an ARM long-time-control estimate. The first port, without incremental updates, lost 90 Elo. Between 18 and 19 the threat set dropped threats to and from kings and, once a separate pawn-pair family covered them, its pawn-on-pawn rows (79,856 → 59,808 features) | Relations and their cost [NI3, NI4, NN3] |
 | Stockfish | Threat rows stored in 8 bits; accumulators that wrap | [NN11] |
 | Stockfish 2021–2026 | Piece-square totals fed straight to the score, until the path was removed in September 2026 at no measured loss | Material path, kept for the bootstrap [NN13] |
 | Stockfish | Lazy accumulator updates | Board state built at first use [NN9] |
@@ -705,6 +707,13 @@ Ideas only: no code, copied or ported [NF12]. Each enters as a provisional decis
 | Stockfish 2026 | Its second, smaller net dropped as a simplification, though the removal tested slightly negative | NF2 rests on P4, not on this |
 | Stockfish | The first dense layer factorised across output buckets in training; starved buckets rerouted | Output stacks [NN7] |
 | Stockfish, KataGo | Correction history; KataGo's subtree value bias correction, a relative for MCTS in Go, gained 30–60 Elo there | NX7 |
+| Stockfish main, October–November 2026 | Output stacks keyed by several coarse facts (piece count, queens, pawn layout, officers), 8 → 32 → 192 classes, factorised in training, rare classes rerouted | Output stacks [NN7]; NX28 |
+| Stockfish main, October 2026 | Piece inputs conditioned on the king's bucket and on whether the opponent has a queen; every input row in 8 bits | NX14, NX29 |
+| Stockfish, April and July 2026 | "A pawn facing a pawn" as threat rows, then pairs of pawns on the same or neighbouring files, which replaced every pawn-on-pawn row | NX30; pawn pairs not taken |
+| Stockfish's trainer, November 2026 | Search-tree positions trained on score alone; decided positions thinned at load | NX31, NX32 |
+| Viridithas, August 2026 | A small net trained on a large teacher's scores | NX33, with Fractal's own teacher [NF5] |
+| Stockfish main, October 2026 | Legal-only move generation from a kept map of attacked squares, reused to order quiet moves | §6.1 and NF13 already work this way; NX34 |
+| Stockfish main, November 2026 | Optimism, the correlation term and the material helper removed from the evaluation | One evaluator [P1, NF1] |
 | Lc0 | Learned attention biases, a static one and smolgen, each reported to play like a 50% larger net. Smolgen emits a fixed 64 × 64 table, and the authors' 2024 preprint finds far smaller gains for value than for policy | NX10, in a form that takes any number of boards |
 | KataGo | Auxiliary targets: ownership and score targets sped learning 1.65× in ablation; all its methods together about 9× | [NL8] |
 | KataGo | Cheap searches for most self-play moves and full ones for a quarter, with only the full ones recorded, because its policy and value targets pull apart | Depth caps, with every position recorded [ND10] |
@@ -743,7 +752,18 @@ Sources:
 - [Stockfish 19 full_threats.cpp](https://github.com/official-stockfish/Stockfish/blob/sf_19/src/nnue/features/full_threats.cpp)
 - [Stockfish, removal of the piece-value path](https://github.com/official-stockfish/Stockfish/commit/a17c0ce28d5a4cc40e3f2d0e8892cb1cb4234730)
 - [Stockfish, removal of the small net](https://github.com/official-stockfish/Stockfish/commit/ab8f901d25def6c17f83b7a1b4b84eaec404c0f4)
+- [Stockfish main since Stockfish 19](https://github.com/official-stockfish/Stockfish/compare/sf_19...master)
+- [SFNNv18](https://github.com/official-stockfish/Stockfish/commit/5c4cef0bfe61fb3249178b2bcf21f5673557efe7), [SFNNv19](https://github.com/official-stockfish/Stockfish/commit/ff7cee4244ec96ea488c402669e3674c0574dce6) and [SFNNv20](https://github.com/official-stockfish/Stockfish/commit/26647279081cdc39d72ef9f10c33289a7da4a5e9)
+- [SFNNv14, a pawn facing a pawn](https://github.com/official-stockfish/Stockfish/commit/5eeca7392ee90b7a43da69e647e3d596e42992fd) and [SFNNv16, pawn pairs](https://github.com/official-stockfish/Stockfish/commit/f4bcd40409f94bd397a083c5d6243bac6dcc6d85)
+- [Stockfish, legal-only move generation](https://github.com/official-stockfish/Stockfish/commit/400c23f978897b34d4a5ed5c4c6c6f858d40f976)
+- [Stockfish, optimism removed](https://github.com/official-stockfish/Stockfish/commit/aa49a249a7898eccb3d538943873b9dd2e930219) and [the correlation term removed](https://github.com/official-stockfish/Stockfish/commit/88337401b7a4d5724611cd1ac32bdacf9e778ebd)
+- [Stockfish, training with AdamW](https://github.com/official-stockfish/Stockfish/commit/f21610e51a436b69fabdcc89d8fe25ff0c2d5731)
+- [Stockfish, 21-bit hash keys](https://github.com/official-stockfish/Stockfish/commit/ff3a6c508ed731f0dcf253f4ddf646df19a62f84)
+- [Stockfish, paired 8-bit rows](https://github.com/official-stockfish/Stockfish/commit/e08dfa8049ead33b64d92c874bda59f213702b42)
 - [nnue-pytorch: NNUE in Stockfish](https://github.com/official-stockfish/nnue-pytorch/blob/master/docs/nnue.md)
+- [nnue-pytorch: architecture history](https://github.com/official-stockfish/nnue-pytorch/blob/master/docs/nnue_architecture_history.md)
+- [nnue-pytorch: search-tree samples](https://github.com/official-stockfish/nnue-pytorch/commit/8d30ed74a1dbcb9670f400fbd1c712f940c20198) and [the skip for decided positions](https://github.com/official-stockfish/nnue-pytorch/commit/0a71e649bdcccee5fab0cfb51ea08a34c8776ec4)
+- [nnue-pytorch: the SFNNv20 trainer](https://github.com/official-stockfish/nnue-pytorch/commit/0a1c697da5e76096c556b991013042f64c17ad4f) and [weight averaging](https://github.com/official-stockfish/nnue-pytorch/commit/77038253250ee9d672e29cc9fb75ab4971e09ce0)
 - [NNUE, Chessprogramming wiki](https://www.chessprogramming.org/NNUE)
 - [Lc0: Transformer Progress](https://lczero.org/blog/2024/02/transformer-progress/)
 - [Lc0 preprint on chess transformers](https://arxiv.org/abs/2409.12272)
@@ -753,6 +773,7 @@ Sources:
 - [YaneuraOu HalfKP](https://github.com/yaneurao/YaneuraOu/blob/master/source/eval/nnue/features/half_kp.h)
 - [Kaneko, parallel df-pn (AAAI-10)](https://ojs.aaai.org/index.php/AAAI/article/view/7551)
 - [Viridithas, with its net log](https://github.com/cosmobobak/viridithas)
+- [Viridithas, distilling from a large teacher](https://github.com/cosmobobak/viridithas/commit/5fd7d6ed1b549864bdf67bb7afe9b58964175946)
 - [Normalised Elo in practice (Van den Bergh)](https://www.cantate.be/Fishtest/normalized_elo_practical.pdf)
 - [OpenBench](https://github.com/AndyGrant/OpenBench)
 - [GitHub Actions billing and usage](https://docs.github.com/en/actions/concepts/billing-and-usage)
@@ -816,6 +837,7 @@ For the coding agent. One branch and one gate report per part; nothing trains un
 - **Every gate report ends with a rulings section:** each question the phase could not settle inside the hard rules, with the options and a recommendation. Fergus rules. A gate with an open ruling has not passed, and its pull request stays open.
 - **G0 was merged with one criterion unmet and five rulings open.** They are answered in `docs/gates/G0-rulings.md`, with the evidence for every decision the first revision changed.
 - **G1a's first part report ended with six rulings,** answered on 27 November 2026 in `docs/gates/G1a-rulings.md`, which records the second revision. Pull request #2 stays open until G1a passes.
+- **An ideas pass of 27 November 2026** (`docs/gates/ideas-2026-11-27.md`) read Stockfish's main branch since Stockfish 19, its trainer and the other engines in development, through their commit notes and documents. Its three rulings, given on 28 November in `docs/gates/ideas-2026-11-27-rulings.md`, make the third revision: arms NX28 to NX34, room for search-tree samples in the record [ND1], and a correction to §13.3.
 - **The spec and the register change only at Fergus's request,** and each revision is recorded in `docs/gates/`. Coding sessions propose changes in gate reports; they do not edit either file.
 
 ## 15. Arms and refusals
@@ -827,7 +849,7 @@ Each arm is one change tested against v1 [P5]. There are two kinds:
 - **Screens** are input, network and data arms. Records store games (ND1), so a variant is trained on the same data and compared on held-out loss and eval cost for a few CPU-hours, as NM12 does. A screen is a filter, not a verdict: Kairos's offline measures disagreed with play three times. A variant that passes its screen still needs a gainer match (§12.3), on the wall clock if it changes speed.
 - **Matches** are search arms. They run after G3, bucketed by active timelines [NM8].
 
-Screens run in this order: NX4 (inside NM12), NX23, NX24, NX15, NX19, NX25, NX13, NX26, NX12, NX11, NX17, NX20, NX3, NX14, NX10, NX5, NX27. G2 requires the first four; the rest follow as data and time allow. Matches run in this order: NX1, NX22, NX21, NX18, NX7, NX9, NX6, NX8. Both orders follow expected gain, with Kairos's results as priors.
+Screens run in this order: NX4 (inside NM12), NX23, NX24, NX15, NX19, NX28, NX25, NX13, NX26, NX12, NX11, NX17, NX20, NX3, NX14, NX29, NX10, NX5, NX32, NX27, NX30. G2 requires the first four; the rest follow as data and time allow. NX31 and NX33 sit outside that order, at G4. Matches run in this order: NX1, NX22, NX21, NX18, NX34, NX7, NX9, NX6, NX8. Both orders follow expected gain, with Kairos's results as priors.
 
 | ID | Arm | Changes | Kind | Why |
 | --- | --- | --- | --- | --- |
@@ -843,8 +865,8 @@ Screens run in this order: NX4 (inside NM12), NX23, NX24, NX15, NX19, NX25, NX13
 | NX10 | Attention over head boards: a learned bias by ΔL class, ΔT class and role pair, then a position-dependent mix of several bias tables | NN5 | Screen | Links between boards beyond direct attacks. Needs an integer softmax [NN11] |
 | NX11 | Widths: relations 64 or 256, pieces 512, embedding 64 | NN1–NN3 | Screen | Size against speed |
 | NX12 | Full victim squares across boards | NI4 | Screen | Finer than 2×2 zones |
-| NX13 | The attacker's square in the relation index, same-board rows first | NI4 | Screen | Stockfish's threat inputs index both squares |
-| NX14 | King buckets for piece features; a board with no king of a colour, or several, takes its own bucket | NI2 | Screen | Stockfish and YaneuraOu index pieces by king square |
+| NX13 | The attacker's square in the relation index, same-board rows first | NI4 | Screen | Stockfish's threat inputs index both squares. With both squares indexed, a same-board row whose attacker's geometry lies inside its victim's repeats the reverse row and is dropped. |
+| NX14 | King buckets for piece features; a board with no king of a colour, or several, takes its own bucket; or buckets also split by whether the enemy has a queen on the board (run with NX29) | NI2 | Screen | Stockfish and YaneuraOu index pieces by king square |
 | NX15 | Squared clipped ReLU, or pairwise products, instead of clipped ReLU | NN2, NN3, NN6 | Screen | Standard in chess NNUE |
 | NX16 | WDL head | NN6 | Retired | Draws are 0.25% of Kairos's games and 2 of 761 human games: a draw output has nothing to learn |
 | NX17 | Signed ΔL | NI5 | Screen | Whether the victim sits on your timelines or theirs |
@@ -858,6 +880,13 @@ Screens run in this order: NX4 (inside NM12), NX23, NX24, NX15, NX19, NX25, NX13
 | NX25 | Branch priority as two inputs to the head: whether each side's next timeline would be active | NI8 | Screen | Players price a timeline of branching credit at about a queen |
 | NX26 | Cross-timeline attack rows split by whether the capture would branch | NI4 | Screen | A capture onto a history board creates a timeline; one onto another head does not |
 | NX27 | Sample weights by search surprise: at most half the weight, capped, each game keeping its total | ND11 | Screen | KataGo for its policy target; Lc0 by the gap between search and net value |
+| NX28 | A second output-stack key beside the active-timeline count: which sides have a queen on a head board, or a three-way piece-count class; or either key on the head's later layers only | NN7 | Screen | Stockfish went from 8 stacks to 192 classes in October and November 2026 and reroutes the rare ones. Fractal's one key leaves most human positions in two stacks. Free at evaluation |
+| NX29 | Piece rows in 8 bits | NN1, NN11 | Screen | Stockfish stores every input row in 8 bits since October 2026. Run with NX14, whose buckets multiply the piece table |
+| NX30 | Facing pawns as relation rows: a pawn whose forward step is blocked by a pawn of either colour | NI3 | Screen | These rows passed Stockfish's gain tests at both time controls in April 2026. No 5D evidence that pawn structure matters |
+| NX31 | Search-tree samples: turn starts from the search's principal variations, stored as the lines that reach them and trained on score alone | ND1, ND10 | Screen | Positions per result are the scarce input (§9.5). Stockfish's trainer takes such samples since November 2026. Runs at G4, on data recorded from gen 2 |
+| NX32 | Decided positions thinned at load: beyond ±2.5 K a position is kept three times in ten | ND6 | Screen | Stockfish's trainer, November 2026. Needs no new data |
+| NX33 | A wider teacher behind the scores: stored positions re-searched with a net several times wider than the playing net | ND5, ND9 | Screen | Stockfish 19 relabelled its data once with a stronger net; Viridithas distils from a large teacher. Fractal's own net and data [NF5], and the teacher never ships [NF2]. Runs at G4 |
+| NX34 | Quiet order from the relation scan: a quiet move of a piece an enemy relation reaches, by a lower-valued attacker or undefended, scores above history | NT4 | Match | The scan is already paid for at the node (§6.1). Stockfish orders quiet moves by its attack maps |
 
 ### 15.2 Refusals
 

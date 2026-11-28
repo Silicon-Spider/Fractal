@@ -2,7 +2,7 @@
 
 1 November 2026 · Fergus
 
-109 decisions (68 committed, 41 provisional), plus 27 arms, 13 refusals and 9 predictions, for the [design spec](SPEC.md). Revised on 15 November 2026 after G0: IDs kept their meaning, new rows took new IDs, and `docs/gates/G0-rulings.md` gives the evidence for every change. Revised again on 27 November 2026 on the rulings in `docs/gates/G1a-rulings.md`, in the same way. (The rewrite of 7 November renumbered the IDs, so references older than that don't carry over.)
+109 decisions (68 committed, 41 provisional), plus 34 arms, 13 refusals and 9 predictions, for the [design spec](SPEC.md). Revised on 15 November 2026 after G0: IDs kept their meaning, new rows took new IDs, and `docs/gates/G0-rulings.md` gives the evidence for every change. Revised again on 27 November 2026 on the rulings in `docs/gates/G1a-rulings.md`, and a third time on 28 November 2026 on the rulings in `docs/gates/ideas-2026-11-27-rulings.md`, in the same way. (The rewrite of 7 November renumbered the IDs, so references older than that don't carry over.)
 
 - **Status:** committed rows hold unless a gate or test match overturns them; provisional rows wait on the gate named.
 - **Class:** committed-class decisions get expensive to change once code depends on them; retrofittable ones can change later.
@@ -96,7 +96,7 @@ Twenty-three rows: 9 committed and 14 provisional.
 
 | ID | Decision | Status | Class | Gate | Spec |
 | --- | --- | --- | --- | --- | --- |
-| ND1 | Records store games (start plus turns) with a score, flags and result per searched position, never features | Committed | Committed-class | — | §9.1 |
+| ND1 | Records store games (start plus turns) with a score, flags and result per searched position, never features; each searched position has room for a list of search-tree samples, empty in gen 1 | Committed | Committed-class | — | §9.1 |
 | ND2 | Gen 1: bootstrap self-play, at least 10M quiet-filter positions from at least 250,000 games, more if the learning curve is still falling | Provisional | Retrofittable | G2 | §9 |
 | ND3 | Gen 2 on: self-play with the latest net, training on a growing window | Provisional | Retrofittable | G4 | §9 |
 | ND4 | Starts: own opening generator for every variant, plus t0database's start games, which are Turn Zero; the timeline mix is steered and reported | Provisional | Retrofittable | G2 | §9.2 |
@@ -154,7 +154,7 @@ Twenty-five rows: 23 committed and 2 provisional.
 
 ## Arms
 
-Twenty-seven arms, all prototype; NX16 is retired. Input, network and data arms are screened offline at G2 before any match; search arms run as matches after G3, bucketed by active timelines (P5, NM8). Spec §15.1 gives the order.
+Thirty-four arms, all prototype; NX16 is retired. Input, network and data arms are screened offline before any match, at G2, or at G4 for NX31 and NX33; search arms run as matches after G3, bucketed by active timelines (P5, NM8). Spec §15.1 gives the order.
 
 | ID | Arm | Tests against | Spec |
 | --- | --- | --- | --- |
@@ -185,6 +185,13 @@ Twenty-seven arms, all prototype; NX16 is retired. Input, network and data arms 
 | NX25 | Branch priority as two inputs to the head | NI8 | §15.1 |
 | NX26 | Cross-timeline attack rows split by whether the capture would branch | NI4 | §15.1 |
 | NX27 | Sample weights by search surprise | ND11 | §9.5 |
+| NX28 | A second output-stack key: queen presence or a piece-count class | NN7 | §15.1 |
+| NX29 | Piece rows in 8 bits | NN1, NN11 | §15.1 |
+| NX30 | Facing pawns as relation rows | NI3 | §15.1 |
+| NX31 | Search-tree samples, trained on score alone | ND1, ND10 | §15.1 |
+| NX32 | Decided positions thinned at load | ND6 | §15.1 |
+| NX33 | A wider teacher of Fractal's own behind the scores | ND5, ND9 | §15.1 |
+| NX34 | Quiet order from the relation scan | NT4 | §15.1 |
 
 ## Refusals
 
@@ -238,12 +245,14 @@ Nine predictions, written down before their tests run.
 - **NX2's list of counts,** written before G3.
 - **Auxiliary targets:** which to train first (NL8).
 - **Browser build:** WASM through Emscripten, threads, and the net budget (NE3).
-- **Fergus's living docs:** both revisions were made in the repository, so they need the same changes before the next export.
+- **Fergus's living docs:** all three revisions were made in the repository, so they need the same changes before the next export.
 
 ## Reversals log
 
 | Date | Was | Now | Why |
 | --- | --- | --- | --- |
+| 2026-11-28 | A searched position's annotation: score, depth, nodes, best turn, static eval and flags | The same, with room for a list of search-tree samples, empty in gen 1 (ND1) | Ideas-pass ruling 2 (a): the format is expensive to change once gen-1 data exists; filling the list is NX31's question at G4 |
+| 2026-11-28 | 27 arms | 34: NX28 to NX34 added, and NX13 and NX14 gain a note and a form (§15.1) | Ideas-pass ruling 1: Stockfish's main branch since Stockfish 19, its trainer and Viridithas |
 | 2026-11-27 | §3.3 in G0's order: the safety net, then items 7, 6, 1 | The safety net, then the royal-capture scan (new item 8) and item 6's first step, then 7, the rest of 6, and 1 (NR3) | G1a ruling 1: the scan was done ahead of the checklist on Fergus's request to speed up legality checking; ratified, on condition of two more tests |
 | 2026-11-27 | No rule for a faster routine replacing a copied one | The copied routine stays as the reference, held equal by test (NR7) | G1a proposal 9; the set scan and the line scan in `check.cpp` set the pattern |
 | 2026-11-27 | Item 6's target: 90% fewer heap allocations per node | 90% on construction and on the eight-turn node: 181 to 18 or fewer, 519 to 51 or fewer, asserted by test (§3.3 item 6) | Ruled with G1a: "per node" named no workload |
