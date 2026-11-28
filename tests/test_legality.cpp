@@ -681,3 +681,315 @@ TEST(legality_the_set_scan_reads_a_multiverse_wider_than_its_pass_table) {
   CHECK(in_check_count > 5);
   CHECK(in_check_count < 12);
 }
+
+// ---- check status read in place: the two tests of spec 3.3 item 8 (G1a ruling 1) ------------
+//
+// in_check reads the passed boards in place. The copied line scan on the passed
+// multiverse, built board by board, is the reference. Two things the tests above do
+// not reach: a pass table of more than one word, and the rules under which the scan
+// must know which boards a pass turns into history.
+
+namespace {
+
+// One timeline of a hand-built multiverse: its first half-turn and its boards.
+struct Line {
+  int first_half_turn = 2;
+  std::vector<BoardRef> boards;
+};
+
+BoardRef empty_board(BoardSize size) { return BoardBuilder(size).publish(); }
+
+BoardRef board_with(BoardSize size, int square, Piece piece) {
+  BoardBuilder b(size);
+  b.put(square, piece);
+  return b.publish();
+}
+
+// The timelines `low`, `low + 1`, ... holding `lines` in order, with `to_move` to move.
+// White created the positive ones and Black the negative ones, each in order outward.
+// Timeline `low + i` has index i in the set scan's pass table.
+Multiverse multiverse_from(BoardSize size, int low, std::vector<Line> lines, Colour to_move) {
+  Multiverse mv(size, false);
+  for (std::size_t i = 0; i < lines.size(); ++i) {
+    const int p = low + static_cast<int>(i);
+    NewTimeline nt;
+    nt.position = p;
+    nt.first_half_turn = lines[i].first_half_turn;
+    nt.boards = std::move(lines[i].boards);
+    if (p != 0) {
+      nt.creator = p > 0 ? Colour::White : Colour::Black;
+      nt.creation_order = p > 0 ? p : -p;
+    }
+    mv.add_timeline(std::move(nt));
+  }
+  mv.set_to_move(to_move);
+  return mv;
+}
+
+// As many timelines below 0 as above it, or one more above: every one is active under
+// the count rule (T10), since neither player is ever more than one creation ahead.
+int balanced_low(int count) { return -((count - 1) / 2); }
+
+// Check status at a turn start by both routes; the line scan's verdict is returned.
+bool check_status_by_both_routes(const GameState& s) {
+  const Multiverse passed = passed_multiverse(s);
+  const Colour attacker = opposite(s.to_move());
+  const bool expected = find_royal_capture(passed, s.rules(), attacker, s.inactive_timelines()).has_value();
+  CHECK_EQ(in_check(s), expected);
+  CHECK_EQ(royal_capture_exists(passed, s.rules(), attacker, s.inactive_timelines()), expected);
+  return expected;
+}
+
+bool holds(const std::vector<int>& sorted, int value) {
+  return std::binary_search(sorted.begin(), sorted.end(), value);
+}
+
+}  // namespace
+
+TEST(legality_check_status_read_in_place_at_65_to_256_timelines) {
+  // The set scan marks the passed timelines in a table of four 64-bit words, one bit
+  // for each timeline by its index. With 65 to 256 timelines, some passed timelines
+  // have an index of 64 or more, in the second to fourth word.
+  //
+  // Half-turns: T1 White 2, T1 Black 3, T2 White 4, T2 Black 5. White is to move and
+  // the present is T1, so exactly the timelines whose last board is at half-turn 2 are
+  // passed (R1).
+  const BoardSize size{8, 8};
+  const Piece king(PieceKind::King, Colour::White);
+  const Piece rook(PieceKind::Rook, Colour::Black);
+  t5d_test::Rng rng(65256);
+
+  // By construction. A white king stands on timeline B and a black rook on the same
+  // square of the timeline beside it, one step away along the timeline axis. B's
+  // index is 64 or more. `alias` is the timeline of index (B's index mod 64): the one
+  // a table that read its first word only would answer for.
+  //
+  //  - With B passed: B's last board is at half-turn 2, so its passed copy is at 3,
+  //    beside the rook's board. The rook takes the king there: check. The alias is not
+  //    passed.
+  //  - With B not passed: B's last board is at half-turn 4, ahead of the present, and
+  //    the rook's is at 5. Nothing stands beside the rook: no check. The alias is passed.
+  int with_pass = 0;
+  int without_pass = 0;
+  for (const int count : {65, 66, 96, 127, 128, 129, 160, 191, 192, 193, 224, 255, 256}) {
+    for (const int index : {64, 65, 100, 126, 127, 128, 129, 190, 191, 192, 193, 254}) {
+      if (index >= count) continue;
+      const int beside = index + 1 < count ? index + 1 : index - 1;
+      const int alias = index & 63;
+      const int square = rng.below(kSquareCount);
+      for (const bool passed : {true, false}) {
+        std::vector<Line> lines(static_cast<std::size_t>(count));
+        for (Line& line : lines) {
+          // Empty boards elsewhere: the last at half-turn 2 (passed) or 3 (not).
+          line.boards.push_back(empty_board(size));
+          if (rng.chance(50)) line.boards.push_back(empty_board(size));
+        }
+        const auto at = [&](int i) -> Line& { return lines[static_cast<std::size_t>(i)]; };
+        if (passed) {
+          at(index).boards = {board_with(size, square, king)};
+          at(beside).boards = {empty_board(size), board_with(size, square, rook)};
+          at(alias).boards = {empty_board(size), empty_board(size)};
+        } else {
+          at(index).boards = {empty_board(size), empty_board(size), board_with(size, square, king)};
+          at(beside).boards = {empty_board(size), empty_board(size), empty_board(size),
+                               board_with(size, square, rook)};
+          at(alias).boards = {empty_board(size)};
+        }
+        const int low = balanced_low(count);
+        const GameState s(multiverse_from(size, low, std::move(lines), Colour::White));
+        REQUIRE_EQ(s.multiverse().timeline_count(), count);
+        REQUIRE(s.inactive_timelines().empty());
+        REQUIRE_EQ(s.present(), 2);
+        const std::vector<int> passed_now = passed_timelines(s);
+        REQUIRE_EQ(holds(passed_now, low + index), passed);
+        REQUIRE_EQ(holds(passed_now, low + alias), !passed);
+        CHECK_EQ(check_status_by_both_routes(s), passed);
+        ++(passed ? with_pass : without_pass);
+      }
+    }
+  }
+  CHECK_EQ(with_pass, 89);  // every count with every index it holds
+  CHECK_EQ(with_pass, without_pass);
+
+  // And random boards. Pieces stand only on timelines of index 64 and above, a few to
+  // a board, so that the verdict rests on those timelines and goes both ways.
+  int rounds = 0;
+  int checks = 0;
+  int high_passes = 0;
+  for (int round = 0; round < 80; ++round) {
+    const int count = rng.between(65, 256);
+    std::vector<Line> lines(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+      const int length = 1 + rng.below(2);
+      for (int k = 0; k < length; ++k) {
+        BoardBuilder b(size);
+        if (i >= 64 && rng.chance(12)) {
+          for (int n = rng.between(1, 3); n > 0; --n) {
+            Piece piece = t5d_test::random_piece(rng);
+            if (rng.chance(40)) piece = Piece(PieceKind::King, piece.colour());
+            b.put(rng.below(kSquareCount), piece);
+          }
+        }
+        lines[static_cast<std::size_t>(i)].boards.push_back(b.publish());
+      }
+    }
+    lines[0].boards.resize(1);  // a last board at half-turn 2: the present is T1, White's
+    const int low = balanced_low(count);
+    const GameState s(multiverse_from(size, low, std::move(lines), Colour::White));
+    REQUIRE_EQ(s.present(), 2);
+    for (const int p : passed_timelines(s)) {
+      if (p - low >= 64) ++high_passes;
+    }
+    if (check_status_by_both_routes(s)) ++checks;
+    ++rounds;
+  }
+  CHECK_EQ(rounds, 80);
+  CHECK(high_passes > 1000);
+  CHECK(checks > 10);
+  CHECK(checks < 70);
+}
+
+TEST(legality_check_status_read_in_place_with_q8_or_q20_off) {
+  // By default every board is a destination. Under Q8's other reading
+  // (turn_zero_reachable = false) a history board at turn zero is none, and under Q20's
+  // (inactive_history_is_destination = false) nor is a history board of an inactive
+  // timeline. So under either the scan must know which boards are history, and a pass
+  // changes that: the passed board becomes history, and its copy is the playable one.
+  RuleOptions q8;
+  q8.turn_zero_reachable = false;
+  RuleOptions q20;
+  q20.inactive_history_is_destination = false;
+  RuleOptions both = q8;
+  both.inactive_history_is_destination = false;
+  const std::vector<RuleOptions> readings = {RuleOptions{}, q8, q20, both};
+  const BoardSize size{8, 8};
+  const int square = make_square(3, 4);
+  const int other = make_square(6, 1);
+
+  // Half-turns: T0 White 0, T0 Black 1, T1 White 2, T1 Black 3, T2 White 4.
+  for (const RuleOptions& rules : readings) {
+    const bool q8_off = !rules.turn_zero_reachable;
+    const bool q20_off = !rules.inactive_history_is_destination;
+    {
+      // A passed copy at turn zero. Timelines -1, 0 and +1 start at T0 with White to
+      // move, and the present is T0. Timeline 0 holds a white king, and is passed: its
+      // copy stands at T0 with Black to move, beside timeline +1's last board, which
+      // holds a black rook on the same square. The copy is the playable board, not
+      // history, so the rook takes the king on it under every reading: check.
+      std::vector<Line> lines(3);
+      lines[0] = Line{0, {empty_board(size)}};
+      lines[1] = Line{0, {board_with(size, square, Piece(PieceKind::King, Colour::White))}};
+      lines[2] = Line{0, {empty_board(size), board_with(size, square, Piece(PieceKind::Rook, Colour::Black))}};
+      const GameState s(multiverse_from(size, -1, std::move(lines), Colour::White), rules);
+      REQUIRE_EQ(s.present(), 0);
+      REQUIRE(passed_timelines(s) == std::vector<int>({-1, 0}));
+      CHECK(check_status_by_both_routes(s));
+    }
+    {
+      // A history board at turn zero. Black is to move: timeline -1's last board is at
+      // T0 with Black to move, the present. Timeline 0 runs to T1 with White to move.
+      // Its T0 board, long since history, holds a black king, and its last board a
+      // white rook on the same square, one turn later. The rook goes back along the
+      // time axis and takes the king, unless a history board at turn zero is no
+      // destination (Q8).
+      std::vector<Line> lines(2);
+      lines[0] = Line{0, {empty_board(size), empty_board(size)}};
+      lines[1] = Line{0,
+                      {board_with(size, square, Piece(PieceKind::King, Colour::Black)), empty_board(size),
+                       board_with(size, square, Piece(PieceKind::Rook, Colour::White))}};
+      const GameState s(multiverse_from(size, -1, std::move(lines), Colour::Black), rules);
+      REQUIRE_EQ(s.present(), 1);
+      REQUIRE(passed_timelines(s) == std::vector<int>({-1}));
+      CHECK_EQ(check_status_by_both_routes(s), !q8_off);
+    }
+    {
+      // A history board at turn zero again, with a pass at turn zero beside it. White
+      // is to move at T0, and timeline 0 is passed; its copy, at T0 with Black to move,
+      // is empty. Timeline +1 has run to T1 with Black to move. Its last board holds a
+      // black rook, and its T0 board with Black to move, which is history, a white
+      // king on the same square. The rook goes back one turn and takes it, unless a
+      // history board at turn zero is no destination (Q8).
+      std::vector<Line> lines(2);
+      lines[0] = Line{0, {empty_board(size)}};
+      lines[1] = Line{0,
+                      {empty_board(size), board_with(size, other, Piece(PieceKind::King, Colour::White)),
+                       empty_board(size), board_with(size, other, Piece(PieceKind::Rook, Colour::Black))}};
+      const GameState s(multiverse_from(size, 0, std::move(lines), Colour::White), rules);
+      REQUIRE_EQ(s.present(), 0);
+      REQUIRE(passed_timelines(s) == std::vector<int>({0}));
+      CHECK_EQ(check_status_by_both_routes(s), !q8_off);
+    }
+    {
+      // A history board of an inactive timeline. White created +1 and +2 and Black
+      // nothing, so +2 is inactive (R2). Black is to move, at T1. Timeline +2 runs to
+      // T2 with White to move: its last board holds a white rook, and its T1 board,
+      // history, a black king on the same square. The rook goes back one turn and takes
+      // it, unless a history board of an inactive timeline is no destination (Q20).
+      std::vector<Line> lines(3);
+      lines[0] = Line{2, {empty_board(size), empty_board(size)}};
+      lines[1] = Line{2, {empty_board(size), empty_board(size)}};
+      lines[2] = Line{2,
+                      {board_with(size, square, Piece(PieceKind::King, Colour::Black)), empty_board(size),
+                       board_with(size, square, Piece(PieceKind::Rook, Colour::White))}};
+      const GameState s(multiverse_from(size, 0, std::move(lines), Colour::Black), rules);
+      REQUIRE_EQ(s.present(), 3);
+      REQUIRE(s.inactive_timelines() == std::vector<int>({2}));
+      REQUIRE(passed_timelines(s) == std::vector<int>({0, 1}));
+      CHECK_EQ(check_status_by_both_routes(s), !q20_off);
+    }
+  }
+
+  // And random multiverses, some with boards at turn zero and some with inactive
+  // timelines, under each of the three readings. Timeline 0 holds the earliest last
+  // board, so the present is there whatever is inactive.
+  t5d_test::Rng rng(820);
+  int compared = 0;
+  int checks = 0;
+  int differ_from_default = 0;
+  int passes_at_turn_zero = 0;
+  int with_inactive = 0;
+  for (int round = 0; round < 3000; ++round) {
+    const int count = rng.between(2, 7);
+    const int first = rng.below(3);
+    const int present = first + rng.below(3);
+    // Balanced, or all created by one player, which leaves all but one of them inactive.
+    const int shape = rng.below(3);
+    const int low = shape == 0 ? balanced_low(count) : shape == 1 ? 0 : -(count - 1);
+    std::vector<Line> lines(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+      const bool central = low + i == 0;
+      const int last = central ? present : present + rng.below(3);
+      Line& line = lines[static_cast<std::size_t>(i)];
+      line.first_half_turn = first;
+      for (int h = first; h <= last; ++h) {
+        BoardBuilder b(size);
+        for (int n = rng.below(3); n > 0; --n) {
+          Piece piece = t5d_test::random_piece(rng);
+          if (rng.chance(50)) piece = Piece(PieceKind::King, piece.colour());
+          b.put(rng.below(kSquareCount), piece);
+        }
+        line.boards.push_back(b.publish());
+      }
+    }
+    const RuleOptions& rules = readings[static_cast<std::size_t>(1 + round % 3)];
+    const GameState s(multiverse_from(size, low, std::move(lines), to_move_at(present)), rules);
+    REQUIRE_EQ(s.present(), present);
+    const bool expected = check_status_by_both_routes(s);
+    ++compared;
+    if (expected) ++checks;
+    // The same boards under the default readings: where the answer differs, Q8 or Q20
+    // decided it.
+    const bool by_default = find_royal_capture(passed_multiverse(s), RuleOptions{}, opposite(s.to_move()),
+                                               s.inactive_timelines())
+                                .has_value();
+    if (by_default != expected) ++differ_from_default;
+    if (present <= 1 && !passed_timelines(s).empty()) ++passes_at_turn_zero;
+    if (!s.inactive_timelines().empty()) ++with_inactive;
+  }
+  CHECK_EQ(compared, 3000);
+  CHECK(checks > 300);
+  CHECK(checks < 2700);
+  CHECK(differ_from_default > 20);
+  CHECK(passes_at_turn_zero > 500);
+  CHECK(with_inactive > 500);
+}

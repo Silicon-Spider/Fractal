@@ -1,14 +1,15 @@
 # G1a: the tests owed
 
-Spec §3.6 lists tests G1a still owes. This report records them as they land. The first part, of 28 November 2026, is the copied-code cases of two copied test files that cannot be built. Two more groups are still owed; the last sections say what and why.
+Spec §3.6 lists tests G1a still owes. This report records them as they land. Two parts landed on 28 November 2026: the copied-code cases of two copied test files that cannot be built, and the two tests of the set scan that G1a ruling 1 made a condition of closing G1a. Two more groups are still owed; the last sections say what and why.
 
-No copied code changed in this part, and no pin moved.
+No copied code changed, and no pin moved.
 
 ## Summary
 
 - **Two new test files in `tests/`:** `test_capi_game.cpp` (11 tests) and `test_turn_state.cpp` (2 tests in a default run, 3 with `--long`).
-- **`fractal-tests` goes from 8 tests to 21,** and its inventory is recorded again by its own command.
-- **The new tests fail when a fault is planted.** Eleven faults were put into the copied code one at a time, and every one fails at least one new test. One failed nothing at first, which showed a gap, and a test was written for it.
+- **Two new tests in `tests/test_legality.cpp`,** the ones ruling 1 asks for: check status read in place equals the line scan at 65 to 256 timelines, and with Q8 or Q20 off its default. Each fails with its fault planted, and no other test does.
+- **`fractal-tests` goes from 8 tests to 23,** and its inventory is recorded again by its own command.
+- **The new tests fail when a fault is planted.** Fourteen faults were put into the copied code one at a time, and every one fails at least one new test. One failed nothing at first, which showed a gap, and a test was written for it.
 - **Nothing wrong was found in the copied code.**
 
 ## What the two copied files tested, and what covers it now
@@ -84,9 +85,44 @@ Each fault was written into the copied code, `fractal-tests` was built and run, 
 - **The seventh fault** fails only the random play. No hand-built position here has two boards arriving in the present's column in the order that shows it.
 - **The tests of legality that were already here** (`tests/test_legality.cpp`) also fail on four of the five `state.cpp` faults, each time through a pin.
 
+## The two tests of §3.3 item 8
+
+Ruling 1 ratified the set scan on a condition: before G1a closes, two tests hold check status read in place equal to the line scan on the passed multiverse, and each is shown to fail with a named fault planted. Fergus said they would supply `fuzz_check.cpp` to adapt. It is not in the tree, and the spec states both tests and both faults in full, so they are written here from the spec. Both are in `tests/test_legality.cpp`, beside the tests of the set scan they extend.
+
+In both, `in_check` reads the passed boards in place, and the reference is the copied line scan (`find_royal_capture`) on `passed_multiverse`, which builds the passed boards one by one.
+
+**(i) `legality_check_status_read_in_place_at_65_to_256_timelines`.** The set scan marks passed timelines in a table of four 64-bit words, one bit for each timeline by its index.
+
+- **By construction, 178 positions.** For 13 timeline counts from 65 to 256 and every index of 64 or more that each holds from a list of 12 (the word boundaries among them), two positions:
+  - A white king on the timeline at that index, which is passed, and a black rook on the same square of the timeline beside it. The rook takes the king on the passed copy: check. The timeline whose bit a first-word-only read would return is not passed.
+  - The same pieces, with the king's timeline ahead of the present and so not passed: no check. The timeline whose bit a first-word-only read would return is passed.
+- **At random, 80 multiverses** of 65 to 256 timelines, with pieces only on timelines of index 64 and above. The test asserts that more than 1,000 passed timelines had such an index and that the verdict went both ways.
+
+**(ii) `legality_check_status_read_in_place_with_q8_or_q20_off`.** By default every board is a destination. Under Q8's other reading a history board at turn zero is none, and under Q20's nor is a history board of an inactive timeline. So under either the scan must know which boards are history, and a pass changes that.
+
+- **By construction, four positions under each of four readings** (the defaults, Q8 off, Q20 off, both), each verdict read off the board:
+  - A passed copy at turn zero, attacked from the timeline beside it: check under every reading, because the copy is the playable board.
+  - A king on a history board at turn zero, attacked from one turn later: check unless Q8 is off.
+  - The same with a pass at turn zero beside it.
+  - A king on a history board of an inactive timeline: check unless Q20 is off.
+- **At random, 3,000 small multiverses,** a third under each of the three readings, some starting at turn zero and some with all but one created timeline inactive. The test asserts that more than 500 had a pass at turn zero, more than 500 an inactive timeline, and that at more than 20 the verdict differs from the default readings' on the same boards.
+
+**The faults planted**, each in `engine/src/check.cpp`:
+
+| Fault | Tests that fail, of the 23 |
+| --- | --- |
+| (i) The pass table is read from word 0 only | `legality_check_status_read_in_place_at_65_to_256_timelines` alone: 146 positions differ |
+| (ii) The passed copy of a board is flagged as history | `legality_check_status_read_in_place_with_q8_or_q20_off` alone: 6 positions differ, the first constructed position among them |
+| The pass table is written to word 0 only | `legality_check_status_read_in_place_at_65_to_256_timelines` alone |
+
+With either named fault planted, the copied suite passes in full, in its default run and its long one (366 and 372 tests), and so do all of Fractal's other tests, long ones included. Only the new test fails. So before these two tests neither fault failed anything, which is what ruling 1 was about.
+
+- **Q20 alone cannot show fault (ii).** Only active timelines are passed (R1), and Q20 is about inactive ones. So under Q20 off the passed copy's history flag is never read, and the fault shows under Q8 off, where a passed copy can stand at turn zero. The test covers both readings; the fault fails it through Q8.
+- **The other half of the pass, the passed board itself becoming history, changes no verdict.** The opponent's pieces land only on boards where the opponent is to move, and the passed board has the mover to move. No test can be made to fail on it, and none here claims to.
+
 ## The inventory
 
-`tools/inventory/fractal-tests.tsv` was recorded again with `tools/run_tests.py --write-inventory`. It held one suite of 8 tests and now holds three suites of 21: the two new files. No suite lost a test.
+`tools/inventory/fractal-tests.tsv` was recorded again with `tools/run_tests.py --write-inventory`. It was recorded twice, once for each part. It held one suite of 8 tests and now holds three suites of 23: the two new files, and `test_legality.cpp` at 10. No suite lost a test.
 
 ## The checks, and what they printed
 
@@ -96,7 +132,7 @@ On Windows, g++ 16.2.0, with warnings as errors.
 | --- | --- |
 | `cmake --build build/engine` | Built, no warnings |
 | `run_tests.py`, `t5d-tests` | 366 passed, 0 failed, 3 skipped; 29 suites as recorded |
-| `run_tests.py`, `fractal-tests` | 21 passed, 0 failed; 3 suites as recorded. With `--long`: 22 passed |
+| `run_tests.py`, `fractal-tests` | 23 passed, 0 failed; 3 suites as recorded. With `--long`: 24 passed |
 | `tools/check_provenance.py` | 221 copied files; 199 unchanged, 22 changed as recorded, 0 failing |
 | `tools/check_docs.py` | 0 problems |
 | `harness.py verify` | All eight sections ok |
@@ -106,12 +142,19 @@ On Windows, g++ 16.2.0, with warnings as errors.
 
 ## Still owed
 
-1. **The two tests of spec §3.3 item 8** (G1a ruling 1): check status read in place equal to the line scan on the passed multiverse, (i) at 65 to 256 timelines and (ii) with Q8 or Q20 off its default, each shown to fail with its fault planted. Fergus said they would supply `fuzz_check.cpp` for these; it is not in the tree yet.
-2. **The allocation test** of §3.3 item 6: construction at 18 heap allocations or fewer, and the eight-turn node at 51 or fewer. The figures stand at 37 and 318 (MEASUREMENTS entry 3), so the test can only pass once items 6b to 6d have landed, and it lands with them.
-3. **Part b's test** that relations equal an independent reading through movegen.
+1. **The allocation test** of §3.3 item 6: construction at 18 heap allocations or fewer, and the eight-turn node at 51 or fewer. The figures stand at 37 and 318 (MEASUREMENTS entry 3), so the test can only pass once items 6b to 6d have landed, and it lands with them.
+2. **Part b's test** that relations equal an independent reading through movegen.
+
+## Proposed doc changes
+
+For Fergus to apply or not; I have not edited either file.
+
+1. **Spec §3.3 item 8.** "Before G1a closes, two more tests hold ..." becomes a statement that the two tests are in `tests/test_legality.cpp`, each shown to fail with its fault planted.
+2. **Spec §3.6.** "with the two tests that item still owes" goes, and the C API's game calls and the turn state are listed as covered by `tests/test_capi_game.cpp` and `tests/test_turn_state.cpp`.
+3. **The register's open items** drop the two tests of §3.3 item 8 and the tests of §3.6 for the two copied files.
 
 ## Rulings needed
 
-1. **`fuzz_check.cpp`.** The two tests of item 8 and their planted faults are fully specified in the spec, so I can write them without the file. Which do you want?
-   - **Recommended:** I write them now from §3.3 item 8, and you compare them with `fuzz_check.cpp` when it is to hand. They are a condition for closing G1a, and they guard code that is already in the tree.
-   - The alternative is to wait for the file, and to start item 7 in the meantime.
+1. **The two tests of item 8 were written without `fuzz_check.cpp`.** Do they meet ruling 1's condition?
+   - **Recommended:** yes, and compare them with `fuzz_check.cpp` when it is to hand. If it covers a case these don't, I add it.
+2. **The three proposed doc changes** above.
