@@ -2,7 +2,7 @@
 #   source: oracles/oracles.lock.toml
 #   commit: c8a9c490bfde650466609531f8083d69513c6036
 #   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-#   state:  unchanged: below this header the file is byte for byte the source
+#   state:  changed: ftxi pinned at v0.5.2 (Fractal G1a ruling 2); see PROVENANCE.md
 # Pins for every third-party repository the oracle harness touches, and for the
 # toolchains that build them.
 #
@@ -24,17 +24,18 @@ upstream = "ftxi/5dchess_engine"
 url = "https://github.com/ftxi/5dchess_engine"
 submodule = "oracle-ftxi"
 path = "oracles/third_party/ftxi"
-commit = "2ea9f1b82880f08faa9400d1ac20b20102604187"
-tree = "41d9f936eeb582e7c530ed1acc9e30eae61bee17"
-ref = "v0.4.10"
-committed = "2026-09-15"
+commit = "e6cf82403c3580ebad4b385f24d610a87438d322"
+tree = "3d989a886169df23a4d9347c4a8b5f6f4ebae8dc"
+ref = "v0.5.2"
+committed = "2026-10-20"
 licence = "BSD-2-Clause"
 licence_file = "LICENSE"
 licence_sha256 = "c36ba7d9587abbf62264a9e096f35b9c9c57805e6a4ae169cfe6e03de5b79e5f"
 summary = "C++23 bitboard rules engine: move generation, check detection, hypercuboid and naive action searches"
 used_as = "Built from an export of the pinned commit. Queried through oracles/drivers/ftxi (links its core library; part of that driver is adapted from its tools/position_tools.cpp and carries its licence notice) and cross-checked against its stock 5dtools CLI."
 notes = [
-    "Pinned at the latest release tag rather than main: the eight commits after v0.4.10 rework the hypercuboid hot path and have not been released.",
+    "Pinned at the release tag v0.5.2 (Fractal G1a ruling 2, 2026-11-27), for three rules fixes after v0.4.10: 18df77d (pawn and brawn moves for Black), f66c4ee (which boards the check test passes) and 52469a2 (royal safety at submission, now inside the oracle's own submit). Its main branch was 25 commits further on that day, at 664277d.",
+    "v0.5.2 adds test/pgn/online: 795 games, 739 of them t0database's (MIT) and 56 from a collection whose README states no licence. None is in the corpus.",
     "Its own submodules (extern/pybind11, extern/client) are not needed and are never initialised; extern/client is declared with an SSH URL, so never update submodules recursively.",
     "Its test/pgn/README.txt lists twelve of its sixteen test records as taken from cwmtt, under the GPL-3.0. A thirteenth (100timelines) is cwmtt's 100_timelines again under another name, and is left out of the corpus; the other three are its own. All are read in place through the corpus manifest, never copied.",
     "At the pin a coordinate packs into 32 bits: 12 for the timeline, 12 for the turn, 4 each for rank and file (src/misc/vec4.h), so timelines and turns each span -2048..2047. The register's 'its 8-bit coordinate packing' (H24) describes an earlier tree.",

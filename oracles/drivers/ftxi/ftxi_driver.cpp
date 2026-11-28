@@ -7,12 +7,13 @@
 // its parser, its state machine, its searches. The glue below only walks the
 // main line and prints what the oracle says.
 //
-// One question is asked here that the oracle's replay tools do not ask. They
-// apply a recorded action and submit it without testing whether it leaves one
-// of the mover's royals capturable, so they would "accept" an action that the
-// oracle's own searches never generate. Before submitting, this driver applies
-// the oracle's own test - find_checks(), the one its naive search prunes with -
-// so that an accepted action means an action the oracle holds legal.
+// An action is accepted as the oracle's own replay tools accept one: each move
+// resolved and applied (state::apply_move_ast), the present tested for
+// advancement, the action submitted, and the mover's royals tested for exposure
+// (state::find_royal_exposure). Up to v0.4.10 those tools submitted without the
+// last test, and this driver applied find_checks() itself before submitting;
+// since v0.5.2 the oracle draws that boundary (its can_submit()), and the driver
+// adds no test of its own.
 //
 // stdin : one 5DPGN record, exact bytes.
 // stdout: JSON Lines.
@@ -66,8 +67,9 @@
 // -----------------------------------------------------------------------------
 // apply_action(), mainline_action_count(), and in main() the set-up that parses
 // the record and the main-line walk (both after read_position()) are adapted
-// from tools/position_tools.cpp of ftxi/5dchess_engine, which is distributed
-// under the following licence. The rest of this file is the project's own.
+// from tools/position_tools.cpp of ftxi/5dchess_engine (as of v0.5.2), which is
+// distributed under the following licence. The rest of this file is the
+// project's own.
 //
 //   BSD 2-Clause License
 //
@@ -116,6 +118,7 @@
 
 #include "check_position.h"
 #include "hypercuboid.h"
+#include "pgnerror.h"
 #include "pgnparser.h"
 #include "search_tools.h"
 #include "state.h"
@@ -166,51 +169,43 @@ struct replay_failure : std::runtime_error
         : std::runtime_error(detail), reason(std::move(reason)) {}
 };
 
-// Adapted from apply_action() in the oracle's tools/position_tools.cpp. Two
-// changes: each failure carries a machine-readable reason, and an action that
-// leaves one of the mover's royals capturable is refused (see the top of this
-// file) instead of submitted.
-void apply_action(state &current, const pgnparser_ast::actions &act)
+// The harness's name for each way the oracle refuses an action: it could not
+// match a move's text to a move, matched it to more than one, could not play
+// it, or could not submit the action. Any other validation error is no verdict
+// about the action, and goes on as an error.
+std::string refusal_reason(const pgn_validation_error &error)
 {
-    const bool mover = current.get_present().second;
-    for(const auto &mv : act.moves)
+    using e = pgn_validation_error;
+    const auto &kind = error.get_error_type();
+    if(std::holds_alternative<e::invalid_move>(kind)) return "no_matching_move";
+    if(std::holds_alternative<e::ambiguous_move>(kind)) return "ambiguous_move";
+    if(std::holds_alternative<e::illegal_move>(kind)
+       || std::holds_alternative<e::illegal_promotion>(kind)) return "illegal_move";
+    if(std::holds_alternative<e::present_not_advanced>(kind)
+       || std::holds_alternative<e::royal_exposed>(kind)) return "cannot_submit";
+    throw error;
+}
+
+// Adapted from apply_action() in the oracle's tools/position_tools.cpp. One
+// change: a refusal carries a machine-readable reason, from the kind of the
+// oracle's own validation error.
+void apply_action(state &current, const pgnparser_ast::actions &act,
+                  const std::shared_ptr<const std::string> &source)
+{
+    try
     {
-        auto [fm, promotion, candidates] = current.parse_move(mv);
-        if(!fm)
-        {
-            std::ostringstream message;
-            if(candidates.empty())
-            {
-                message << "Invalid move: " << mv;
-                throw replay_failure("no_matching_move", message.str());
-            }
-            message << "Ambiguous move: " << mv << "; candidates: "
-                    << range_to_string(candidates, "", "");
-            throw replay_failure("ambiguous_move", message.str());
-        }
-        const bool applied = promotion
-            ? current.apply_move(ext_move(*fm, to_white(*promotion)))
-            : current.apply_move(*fm);
-        if(!applied)
-        {
-            std::ostringstream message;
-            message << "Illegal move: " << mv << " (parsed as: " << *fm << ')';
-            throw replay_failure("illegal_move", message.str());
-        }
+        for(const auto &mv : act.moves)
+            current.apply_move_ast(mv, source);
+        if(!current.test_present())
+            throw pgn_validation_error(pgn_validation_error::present_not_advanced{},
+                                       pgn_validation_error::make_subject(act, source));
+        current.submit<true>();
+        if(auto exposure = current.find_royal_exposure(false))
+            throw pgn_validation_error(*exposure, pgn_validation_error::make_subject(act, source));
     }
-    // The oracle's own legality test for a whole action, as its naive search
-    // applies it: no enemy capture of a royal on the boards just played.
-    if(current.find_checks(!mover).first().has_value())
+    catch(const pgn_validation_error &error)
     {
-        std::ostringstream message;
-        message << "Leaves a royal capturable after these moves: " << act;
-        throw replay_failure("cannot_submit", message.str());
-    }
-    if(!current.submit())
-    {
-        std::ostringstream message;
-        message << "Cannot submit after parsing these moves: " << act;
-        throw replay_failure("cannot_submit", message.str());
+        throw replay_failure(refusal_reason(error), error.what());
     }
 }
 
@@ -320,13 +315,13 @@ void for_each_board(const state &s, Visit &&visit)
     const auto [l_min, l_max] = s.get_lines_range();
     for(int l = l_min; l <= l_max; ++l)
     {
-        const turn_t end = s.get_timeline_end(l);
-        for(turn_t at = s.get_timeline_start(l); at <= end; at = next_turn(at))
+        const turn end = s.get_timeline_end(l);
+        for(turn at = s.get_timeline_start(l); at <= end; at = at.next_turn())
         {
-            const board *b = s.get_board_ptr(l, at.first, at.second);
+            const board *b = s.get_board_ptr(l, at.t(), at.c());
             if(b == nullptr)
                 throw std::logic_error("the oracle holds no board at L" + std::to_string(l)
-                                       + " T" + std::to_string(at.first) + (at.second ? "b" : "w")
+                                       + " T" + std::to_string(at.t()) + (at.c() ? "b" : "w")
                                        + ", inside its timeline");
             visit(l, at, *b);
         }
@@ -341,8 +336,11 @@ void emit_state(const state &s, std::size_t index)
          << ",\"size\":\"" << board_size(s) << '"'
          << ",\"markers\":true,\"boards\":[";
     const char *separator = "";
-    for_each_board(s, [&](int l, turn_t at, const board &b) {
-        const std::string placement = b.get_fen<true>();
+    // Since v0.5.2 a board is written at the size it is asked for, and a square
+    // outside the record's boards is a wall; so it is asked for at their size.
+    const auto [width, height] = s.get_board_size();
+    for_each_board(s, [&](int l, turn at, const board &b) {
+        const std::string placement = b.get_fen<true>(width, height);
         // The pieces field is written square by square from the bitboards; one
         // dropped piece would change the fingerprint without a trace, so the
         // two are held to each other. A wall sets both colour bits and is no
@@ -353,8 +351,8 @@ void emit_state(const state &s, std::size_t index)
         if(letters != std::popcount(b.white() ^ b.black()))
             throw std::logic_error("the pieces field '" + placement + "' of the board on line "
                                    + std::to_string(l) + " does not list the board's pieces");
-        line << separator << '"' << timeline_label(s, l) << ':' << at.first << ':'
-             << (at.second ? 'b' : 'w') << ':' << json_escape(placement) << '"';
+        line << separator << '"' << timeline_label(s, l) << ':' << at.t() << ':'
+             << (at.c() ? 'b' : 'w') << ':' << json_escape(placement) << '"';
         separator = ",";
     });
     line << "]}\n";
@@ -381,7 +379,7 @@ void write_piece(std::ostream &out, const board *b, vec4 p)
 
 void emit_explain(const state &s, std::size_t index)
 {
-    const bool attacker = !s.get_present().second;
+    const bool attacker = !s.get_present().c();
     // The view has_phantom_check() tests, built the same way.
     const auto view = check_position::for_phantom(s);
     std::ostringstream line;
@@ -392,8 +390,8 @@ void emit_explain(const state &s, std::size_t index)
     {
         // Read off the view itself: a timeline was advanced exactly when the
         // view holds a board past the timeline's last one.
-        const turn_t after = next_turn(s.get_timeline_end(l));
-        if(view.board_at(l, after.first, after.second) != nullptr)
+        const turn after = s.get_timeline_end(l).next_turn();
+        if(view.get_board_ptr(l, after.t(), after.c()) != nullptr)
         {
             line << separator << '"' << timeline_label(s, l) << '"';
             separator = ",";
@@ -409,10 +407,10 @@ void emit_explain(const state &s, std::size_t index)
         {
             line << separator << "{\"from\":";
             write_square(line, s, capture.from, attacker);
-            write_piece(line, view.board_at(capture.from.l(), capture.from.t(), attacker), capture.from);
+            write_piece(line, view.get_board_ptr(capture.from.l(), capture.from.t(), attacker), capture.from);
             line << "},\"to\":";
             write_square(line, s, capture.to, attacker);
-            write_piece(line, view.board_at(capture.to.l(), capture.to.t(), attacker), capture.to);
+            write_piece(line, view.get_board_ptr(capture.to.l(), capture.to.t(), attacker), capture.to);
             line << "}}";
             separator = ",";
         }
@@ -424,7 +422,7 @@ void emit_explain(const state &s, std::size_t index)
 
 void emit_actions(const state &s, std::size_t index, policy_t policy)
 {
-    const bool mover = s.get_present().second;
+    const bool mover = s.get_present().c();
     std::ostringstream listed;
     std::size_t count = 0;
     bool truncated = false;
@@ -445,7 +443,7 @@ void emit_actions(const state &s, std::size_t index, policy_t policy)
             // The piece the oracle promotes to when it plays this move: its
             // searches yield the move alone, and playing it resolves the
             // record's default promotion piece (state::normalize_promotion).
-            const auto played = s.normalize_promotion(ext_move(mv, NO_PIECE));
+            const auto played = s.normalize_promotion(mv);
             listed << "},\"promotion\":";
             if(played && played->promote_to != NO_PIECE)
                 listed << '"' << static_cast<char>(to_white(piece_name(played->promote_to))) << '"';
@@ -466,7 +464,7 @@ void emit_actions(const state &s, std::size_t index, policy_t policy)
 void emit_position(const state &s, std::size_t index, policy_t policy, int cap)
 {
     const auto started = std::chrono::steady_clock::now();
-    const bool black = s.get_present().second;
+    const bool black = s.get_present().c();
     const bool in_check = s.has_phantom_check();
     const std::size_t legal = count_actions(s, policy, cap);
     const char *terminal = legal > 0 ? "none" : (in_check ? "checkmate" : "stalemate");
@@ -564,16 +562,19 @@ int main(int argc, const char *argv[])
 
     std::unique_ptr<state> current;
     pgnparser_ast::gametree mainline;
+    std::shared_ptr<const std::string> source;
     std::size_t total = 0;
     try
     {
         auto parsed = pgnparser(pgn).parse_game();
-        if(!parsed) throw parse_error("no game found");
+        if(!parsed) throw parse_error(parse_error::unexpected_input{{"a game"}},
+                                      std::make_shared<const std::string>(pgn), {0, pgn.size()});
         pgnparser_ast::game game = std::move(*parsed);
         total = mainline_action_count(game.gt);
         mainline = std::move(game.gt);
         game.gt = pgnparser_ast::gametree{};
-        current = std::make_unique<state>(game);
+        source = game.source_text;
+        current = std::make_unique<state>(state::from_ast(game));
     }
     catch(const parse_error &error)
     {
@@ -605,7 +606,7 @@ int main(int argc, const char *argv[])
             const auto &[action, next] = variations.back();
             try
             {
-                apply_action(*current, action);
+                apply_action(*current, action, source);
             }
             catch(const replay_failure &failure)
             {

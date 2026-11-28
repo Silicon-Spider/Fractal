@@ -28,8 +28,8 @@ independent recordings - neither is compared with anything.
 
 | Source | ok | rejected | unsupported | error | timeout | positions | known values | unknown at a limit | unstable | described | with markers |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `ftxi` | 29 | 3 | 9 | 0 | 0 | 1032 | 4128 | 0 | 0 | 1032 | 1032 |
-| `ftxi:naive` | 20 | 3 | 9 | 0 | 9 | 897 | 3552 | 0 | 0 | 897 | 897 |
+| `ftxi` | 29 | 4 | 8 | 0 | 0 | 1041 | 4164 | 0 | 0 | 1041 | 1041 |
+| `ftxi:naive` | 20 | 4 | 8 | 0 | 9 | 906 | 3588 | 0 | 0 | 906 | 906 |
 | `cwmtt` | 26 | 1 | 14 | 0 | 0 | 896 | 2688 | 0 | 0 | 896 | 896 |
 | `cwmtt:naive` | 16 | 1 | 14 | 0 | 10 | 711 | 2113 | 0 | 0 | 711 | 711 |
 | `chessin5d` | 27 | 1 | 13 | 0 | 0 | 936 | 2786 | 22 | 0 | 936 | 936 |
@@ -46,16 +46,16 @@ re-record on a loaded machine, to make a run pass.
 
 | Tier | Source | Budget | Required values | Recorded values | Required outcomes | Recorded outcomes | Required terminal verdicts | Recorded terminal verdicts |
 |---|---|---|---|---|---|---|---|---|
-| commit | `ftxi` | timeout_s=60 | 8256 | 8256 | 41 | 41 | 17 | 17 |
+| commit | `ftxi` | timeout_s=60 | 8328 | 8328 | 41 | 41 | 17 | 17 |
 | commit | `notation` | timeout_s=60 | 3012 | 3012 | 41 | 41 | 0 | 0 |
-| nightly | `ftxi` | timeout_s=300 | 8256 | 8256 | 41 | 41 | 17 | 17 |
-| nightly | `ftxi:naive` | timeout_s=120 | 6556 | 7140 | 32 | 32 | 11 | 11 |
+| nightly | `ftxi` | timeout_s=300 | 8328 | 8328 | 41 | 41 | 17 | 17 |
+| nightly | `ftxi:naive` | timeout_s=120 | 6708 | 7212 | 32 | 32 | 11 | 11 |
 | nightly | `cwmtt` | timeout_s=900 | 6272 | 6272 | 41 | 41 | 15 | 15 |
 | nightly | `cwmtt:naive` | timeout_s=120 | 4755 | 4957 | 29 | 31 | 5 | 7 |
 | nightly | `chessin5d` | timeout_s=600, mate_budget_ms=20000 | 6461 | 6530 | 40 | 41 | 17 | 18 |
 | nightly | `notation` | timeout_s=300 | 3012 | 3012 | 41 | 41 | 0 | 0 |
-| release | `ftxi` | timeout_s=600 | 8256 | 8256 | 41 | 41 | 17 | 17 |
-| release | `ftxi:naive` | timeout_s=300 | 6780 | 7140 | 32 | 32 | 11 | 11 |
+| release | `ftxi` | timeout_s=600 | 8328 | 8328 | 41 | 41 | 17 | 17 |
+| release | `ftxi:naive` | timeout_s=300 | 7004 | 7212 | 32 | 32 | 11 | 11 |
 | release | `cwmtt` | timeout_s=1200 | 6272 | 6272 | 41 | 41 | 15 | 15 |
 | release | `cwmtt:naive` | timeout_s=300 | 4853 | 4957 | 30 | 31 | 6 | 7 |
 | release | `chessin5d` | timeout_s=900, mate_budget_ms=60000 | 6530 | 6530 | 41 | 41 | 18 | 18 |
@@ -89,7 +89,7 @@ they are evidence about no named variant.
 | Misc - Timeline Invasion | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 23 | 0 | 0 | 0 |
 | Misc - Timeline Marauders | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 3 | 0 | 0 | 0 |
 | Standard | 17 | 16 | 13 | 13 | 9 | 16 | 15 | 668 | 667 | 622 | 667 |
-| Standard - Half Reflected | 1 | 0 | 0 | 1 | 1 | 1 | 1 | 21 | 21 | 21 | 21 |
+| Standard - Half Reflected | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 21 | 21 | 21 | 21 |
 | Standard - Reversed Royalty | 1 | 1 | 0 | 1 | 0 | 1 | 0 | 122 | 122 | 122 | 122 |
 | Standard - Turn Zero | 7 | 7 | 4 | 6 | 2 | 6 | 6 | 144 | 138 | 144 | 143 |
 | Very Small - Open | 2 | 2 | 1 | 2 | 1 | 0 | 0 | 23 | 23 | 23 | 23 |
@@ -111,20 +111,20 @@ compared, and not counted.
 
 | Between | Observable | Both answered | Equal | Loosely | Contradictory | Same state | Same boards | Unverified |
 |---|---|---|---|---|---|---|---|---|
-| `ftxi` vs `ftxi:naive` (one implementation) | in_check | 888 | 888 | 0 | 0 | 888 | 0 | 0 |
-| `ftxi` vs `ftxi:naive` (one implementation) | legal_actions | 888 | 477 | 411 | 0 | 888 | 0 | 0 |
-| `ftxi` vs `ftxi:naive` (one implementation) | terminal | 888 | 888 | 0 | 0 | 888 | 0 | 0 |
-| `ftxi` vs `cwmtt` | legal_actions | 821 | 419 | 401 | 1 | 798 | 23 | 0 |
+| `ftxi` vs `ftxi:naive` (one implementation) | in_check | 897 | 897 | 0 | 0 | 897 | 0 | 0 |
+| `ftxi` vs `ftxi:naive` (one implementation) | legal_actions | 897 | 486 | 411 | 0 | 897 | 0 | 0 |
+| `ftxi` vs `ftxi:naive` (one implementation) | terminal | 897 | 897 | 0 | 0 | 897 | 0 | 0 |
+| `ftxi` vs `cwmtt` | legal_actions | 821 | 420 | 401 | 0 | 798 | 23 | 0 |
 | `ftxi` vs `cwmtt` | terminal | 821 | 810 | 11 | 0 | 798 | 23 | 0 |
-| `ftxi` vs `cwmtt:naive` | legal_actions | 627 | 401 | 225 | 1 | 605 | 22 | 0 |
+| `ftxi` vs `cwmtt:naive` | legal_actions | 627 | 402 | 225 | 0 | 605 | 22 | 0 |
 | `ftxi` vs `cwmtt:naive` | terminal | 627 | 623 | 4 | 0 | 605 | 22 | 0 |
-| `ftxi` vs `chessin5d` | in_check | 857 | 765 | 0 | 92 | 857 | 0 | 0 |
+| `ftxi` vs `chessin5d` | in_check | 857 | 857 | 0 | 0 | 857 | 0 | 0 |
 | `ftxi` vs `chessin5d` | terminal | 835 | 833 | 0 | 2 | 835 | 0 | 0 |
-| `ftxi:naive` vs `cwmtt` | legal_actions | 698 | 406 | 291 | 1 | 676 | 22 | 0 |
+| `ftxi:naive` vs `cwmtt` | legal_actions | 698 | 407 | 291 | 0 | 676 | 22 | 0 |
 | `ftxi:naive` vs `cwmtt` | terminal | 698 | 693 | 5 | 0 | 676 | 22 | 0 |
-| `ftxi:naive` vs `cwmtt:naive` | legal_actions | 625 | 400 | 224 | 1 | 603 | 22 | 0 |
+| `ftxi:naive` vs `cwmtt:naive` | legal_actions | 625 | 401 | 224 | 0 | 603 | 22 | 0 |
 | `ftxi:naive` vs `cwmtt:naive` | terminal | 625 | 621 | 4 | 0 | 603 | 22 | 0 |
-| `ftxi:naive` vs `chessin5d` | in_check | 735 | 680 | 0 | 55 | 735 | 0 | 0 |
+| `ftxi:naive` vs `chessin5d` | in_check | 735 | 735 | 0 | 0 | 735 | 0 | 0 |
 | `ftxi:naive` vs `chessin5d` | terminal | 724 | 722 | 0 | 2 | 724 | 0 | 0 |
 | `cwmtt` vs `cwmtt:naive` (one implementation) | legal_actions | 701 | 451 | 250 | 0 | 701 | 0 | 0 |
 | `cwmtt` vs `cwmtt:naive` (one implementation) | terminal | 701 | 694 | 7 | 0 | 701 | 0 | 0 |
@@ -154,6 +154,14 @@ harness or its driver, not a reading.
 | `cwmtt/ctp1` | `ftxi` vs `cwmtt:naive` | 0 | marker-only | `d2c9497bf0c2e7644ce38ffb5d5b61da` (1 board, 10 pieces) | `766312fd4b977c55487b7f5465932937` (1 board, 10 pieces) | - |
 | `cwmtt/ctp1` | `ftxi:naive` vs `cwmtt` | 0 | marker-only | `d2c9497bf0c2e7644ce38ffb5d5b61da` (1 board, 10 pieces) | `766312fd4b977c55487b7f5465932937` (1 board, 10 pieces) | - |
 | `cwmtt/ctp1` | `ftxi:naive` vs `cwmtt:naive` | 0 | marker-only | `d2c9497bf0c2e7644ce38ffb5d5b61da` (1 board, 10 pieces) | `766312fd4b977c55487b7f5465932937` (1 board, 10 pieces) | - |
+| `cwmtt/test1` | `ftxi` vs `cwmtt` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi` vs `cwmtt:naive` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi` vs `chessin5d` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi` vs `notation` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi:naive` vs `cwmtt` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi:naive` vs `cwmtt:naive` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi:naive` vs `chessin5d` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
+| `cwmtt/test1` | `ftxi:naive` vs `notation` | 0 | placement | `0d1e4de0ef35a3b8c1df448d4846bcd1` (1 board, 32 pieces) | `1d82aa5df75ff41c23af5f815d2ec453` (1 board, 32 pieces) | 9 |
 | `ftxi/verysmall` | `ftxi` vs `cwmtt` | 0 | marker-only | `d2c9497bf0c2e7644ce38ffb5d5b61da` (1 board, 10 pieces) | `766312fd4b977c55487b7f5465932937` (1 board, 10 pieces) | - |
 | `ftxi/verysmall` | `ftxi` vs `cwmtt:naive` | 0 | marker-only | `d2c9497bf0c2e7644ce38ffb5d5b61da` (1 board, 10 pieces) | `766312fd4b977c55487b7f5465932937` (1 board, 10 pieces) | - |
 | `ftxi/verysmall` | `ftxi:naive` vs `cwmtt` | 0 | marker-only | `d2c9497bf0c2e7644ce38ffb5d5b61da` (1 board, 10 pieces) | `766312fd4b977c55487b7f5465932937` (1 board, 10 pieces) | - |
@@ -168,15 +176,15 @@ and where the pieces are), and how many of those were marked the same way.
 
 | Between | Both described | Same boards | Both marked | Same markers |
 |---|---|---|---|---|
-| `ftxi` vs `ftxi:naive` (one implementation) | 897 | 897 | 897 | 897 |
-| `ftxi` vs `cwmtt` | 821 | 821 | 821 | 798 |
-| `ftxi` vs `cwmtt:naive` | 636 | 636 | 636 | 613 |
-| `ftxi` vs `chessin5d` | 857 | 857 | 857 | 857 |
-| `ftxi` vs `notation` | 648 | 648 | 0 | 0 |
-| `ftxi:naive` vs `cwmtt` | 706 | 706 | 706 | 683 |
-| `ftxi:naive` vs `cwmtt:naive` | 634 | 634 | 634 | 611 |
-| `ftxi:naive` vs `chessin5d` | 742 | 742 | 742 | 742 |
-| `ftxi:naive` vs `notation` | 566 | 566 | 0 | 0 |
+| `ftxi` vs `ftxi:naive` (one implementation) | 906 | 906 | 906 | 906 |
+| `ftxi` vs `cwmtt` | 822 | 821 | 821 | 798 |
+| `ftxi` vs `cwmtt:naive` | 637 | 636 | 636 | 613 |
+| `ftxi` vs `chessin5d` | 858 | 857 | 857 | 857 |
+| `ftxi` vs `notation` | 649 | 648 | 0 | 0 |
+| `ftxi:naive` vs `cwmtt` | 707 | 706 | 706 | 683 |
+| `ftxi:naive` vs `cwmtt:naive` | 635 | 634 | 634 | 611 |
+| `ftxi:naive` vs `chessin5d` | 743 | 742 | 742 | 742 |
+| `ftxi:naive` vs `notation` | 567 | 566 | 0 | 0 |
 | `cwmtt` vs `cwmtt:naive` (one implementation) | 711 | 711 | 711 | 711 |
 | `cwmtt` vs `chessin5d` | 825 | 825 | 825 | 825 |
 | `cwmtt` vs `notation` | 617 | 617 | 0 | 0 |
@@ -192,21 +200,23 @@ and where the pieces are), and how many of those were marked the same way.
 | `cwmtt` vs `chessin5d` | terminal | 1 |
 | `cwmtt` vs `notation` | legality (soft) | 1 |
 | `cwmtt:naive` vs `chessin5d` | terminal | 1 |
-| `ftxi` vs `chessin5d` | in_check | 92 |
 | `ftxi` vs `chessin5d` | legality (soft) | 1 |
+| `ftxi` vs `chessin5d` | placement | 1 |
 | `ftxi` vs `chessin5d` | terminal | 2 |
-| `ftxi` vs `cwmtt` | legal_actions | 1 |
 | `ftxi` vs `cwmtt` | legality (soft) | 2 |
+| `ftxi` vs `cwmtt` | placement | 1 |
 | `ftxi` vs `cwmtt` | unmoved | 2 |
-| `ftxi` vs `cwmtt:naive` | legal_actions | 1 |
+| `ftxi` vs `cwmtt:naive` | placement | 1 |
 | `ftxi` vs `cwmtt:naive` | unmoved | 2 |
 | `ftxi` vs `notation` | legality (soft) | 3 |
-| `ftxi:naive` vs `chessin5d` | in_check | 55 |
+| `ftxi` vs `notation` | placement | 1 |
+| `ftxi:naive` vs `chessin5d` | placement | 1 |
 | `ftxi:naive` vs `chessin5d` | terminal | 2 |
-| `ftxi:naive` vs `cwmtt` | legal_actions | 1 |
+| `ftxi:naive` vs `cwmtt` | placement | 1 |
 | `ftxi:naive` vs `cwmtt` | unmoved | 2 |
-| `ftxi:naive` vs `cwmtt:naive` | legal_actions | 1 |
+| `ftxi:naive` vs `cwmtt:naive` | placement | 1 |
 | `ftxi:naive` vs `cwmtt:naive` | unmoved | 2 |
+| `ftxi:naive` vs `notation` | placement | 1 |
 
 ## Detail
 
@@ -214,28 +224,9 @@ The rules disagreements; the parse divergences are listed above.
 
 ### `cwmtt/100_timelines`
 
-- position 13, in_check: `ftxi` = True; `chessin5d` = False
-- position 15, in_check: `ftxi` = True; `chessin5d` = False
-- position 20, in_check: `ftxi` = True; `chessin5d` = False
 - action 1, legality *(soft)*: `ftxi` = accepted; `notation` = rejected:no_matching_move
-- position 13, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 15, in_check: `ftxi:naive` = True; `chessin5d` = False
 - action 1, legality *(soft)*: `cwmtt` = accepted; `notation` = rejected:no_matching_move
 - action 1, legality *(soft)*: `chessin5d` = accepted; `notation` = rejected:no_matching_move
-
-### `cwmtt/NP`
-
-- position 77, in_check: `ftxi` = True; `chessin5d` = False
-- position 79, in_check: `ftxi` = True; `chessin5d` = False
-- position 77, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 79, in_check: `ftxi:naive` = True; `chessin5d` = False
-
-### `cwmtt/NP0`
-
-- position 77, in_check: `ftxi` = True; `chessin5d` = False
-- position 79, in_check: `ftxi` = True; `chessin5d` = False
-- position 77, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 79, in_check: `ftxi:naive` = True; `chessin5d` = False
 
 ### `cwmtt/chessin5d-illegal-move-example`
 
@@ -244,186 +235,18 @@ The rules disagreements; the parse divergences are listed above.
 - position 66, terminal: `cwmtt` = none; `chessin5d` = checkmate
 - position 66, terminal: `cwmtt:naive` = none; `chessin5d` = checkmate
 
-### `cwmtt/exiledKings`
-
-- position 12, in_check: `ftxi` = True; `chessin5d` = False
-- position 14, in_check: `ftxi` = True; `chessin5d` = False
-- position 16, in_check: `ftxi` = True; `chessin5d` = False
-- position 18, in_check: `ftxi` = True; `chessin5d` = False
-- position 12, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 14, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 16, in_check: `ftxi:naive` = True; `chessin5d` = False
-
 ### `cwmtt/futures`
 
 - action 17, legality *(soft)*: `ftxi` = rejected:no_matching_move; `cwmtt` = accepted
 - action 17, legality *(soft)*: `ftxi` = rejected:no_matching_move; `chessin5d` = accepted
 - action 17, legality *(soft)*: `ftxi` = rejected:no_matching_move; `notation` = accepted
 
-### `cwmtt/many2`
-
-- position 12, in_check: `ftxi` = True; `chessin5d` = False
-- position 14, in_check: `ftxi` = True; `chessin5d` = False
-- position 19, in_check: `ftxi` = True; `chessin5d` = False
-- position 21, in_check: `ftxi` = True; `chessin5d` = False
-- position 25, in_check: `ftxi` = True; `chessin5d` = False
-- position 31, in_check: `ftxi` = True; `chessin5d` = False
-- position 33, in_check: `ftxi` = True; `chessin5d` = False
-- position 36, in_check: `ftxi` = True; `chessin5d` = False
-- position 37, in_check: `ftxi` = True; `chessin5d` = False
-- position 39, in_check: `ftxi` = True; `chessin5d` = False
-- position 47, in_check: `ftxi` = True; `chessin5d` = False
-- position 49, in_check: `ftxi` = True; `chessin5d` = False
-- position 56, in_check: `ftxi` = True; `chessin5d` = False
-- position 60, in_check: `ftxi` = True; `chessin5d` = False
-- position 12, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 14, in_check: `ftxi:naive` = True; `chessin5d` = False
-
-### `cwmtt/manyChecks`
-
-- position 20, in_check: `ftxi` = True; `chessin5d` = False
-- position 28, in_check: `ftxi` = True; `chessin5d` = False
-- position 30, in_check: `ftxi` = True; `chessin5d` = False
-- position 32, in_check: `ftxi` = True; `chessin5d` = False
-- position 40, in_check: `ftxi` = True; `chessin5d` = False
-- position 20, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 28, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 30, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 32, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 40, in_check: `ftxi:naive` = True; `chessin5d` = False
-
-### `cwmtt/niceAndrey`
-
-- position 41, in_check: `ftxi` = True; `chessin5d` = False
-- position 43, in_check: `ftxi` = True; `chessin5d` = False
-- position 45, in_check: `ftxi` = True; `chessin5d` = False
-- position 47, in_check: `ftxi` = True; `chessin5d` = False
-- position 49, in_check: `ftxi` = True; `chessin5d` = False
-- position 56, in_check: `ftxi` = True; `chessin5d` = False
-- position 57, in_check: `ftxi` = True; `chessin5d` = False
-- position 58, in_check: `ftxi` = True; `chessin5d` = False
-- position 60, in_check: `ftxi` = True; `chessin5d` = False
-- position 61, in_check: `ftxi` = True; `chessin5d` = False
-- position 63, in_check: `ftxi` = True; `chessin5d` = False
-- position 64, in_check: `ftxi` = True; `chessin5d` = False
-- position 65, in_check: `ftxi` = True; `chessin5d` = False
-- position 66, in_check: `ftxi` = True; `chessin5d` = False
-- position 68, in_check: `ftxi` = True; `chessin5d` = False
-- position 69, in_check: `ftxi` = True; `chessin5d` = False
-- position 71, in_check: `ftxi` = True; `chessin5d` = False
-- position 75, in_check: `ftxi` = True; `chessin5d` = False
-- position 77, in_check: `ftxi` = True; `chessin5d` = False
-- position 79, in_check: `ftxi` = True; `chessin5d` = False
-- position 81, in_check: `ftxi` = True; `chessin5d` = False
-- position 87, in_check: `ftxi` = True; `chessin5d` = False
-- position 90, in_check: `ftxi` = True; `chessin5d` = False
-- position 91, in_check: `ftxi` = True; `chessin5d` = False
-- position 92, in_check: `ftxi` = True; `chessin5d` = False
-- position 94, in_check: `ftxi` = True; `chessin5d` = False
-- position 95, in_check: `ftxi` = True; `chessin5d` = False
-- position 96, in_check: `ftxi` = True; `chessin5d` = False
-- position 97, in_check: `ftxi` = True; `chessin5d` = False
-- position 101, in_check: `ftxi` = True; `chessin5d` = False
-- position 103, in_check: `ftxi` = True; `chessin5d` = False
-- position 105, in_check: `ftxi` = True; `chessin5d` = False
-- position 111, in_check: `ftxi` = True; `chessin5d` = False
-- position 113, in_check: `ftxi` = True; `chessin5d` = False
-- position 116, in_check: `ftxi` = True; `chessin5d` = False
-- position 117, in_check: `ftxi` = True; `chessin5d` = False
-- position 118, in_check: `ftxi` = True; `chessin5d` = False
-- position 41, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 43, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 45, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 47, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 49, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 56, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 57, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 58, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 60, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 61, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 63, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 64, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 65, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 66, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 68, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 69, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 71, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 75, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 77, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 79, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 81, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 87, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 90, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 91, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 92, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 94, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 95, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 96, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 97, in_check: `ftxi:naive` = True; `chessin5d` = False
-
-### `cwmtt/silly`
-
-- position 16, in_check: `ftxi` = True; `chessin5d` = False
-- position 28, in_check: `ftxi` = True; `chessin5d` = False
-- position 30, in_check: `ftxi` = True; `chessin5d` = False
-- position 32, in_check: `ftxi` = True; `chessin5d` = False
-- position 34, in_check: `ftxi` = True; `chessin5d` = False
-- position 16, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 28, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 30, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 32, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 34, in_check: `ftxi:naive` = True; `chessin5d` = False
-
-### `cwmtt/standard`
-
-- position 13, in_check: `ftxi` = True; `chessin5d` = False
-- position 15, in_check: `ftxi` = True; `chessin5d` = False
-- position 13, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 15, in_check: `ftxi:naive` = True; `chessin5d` = False
-
 ### `cwmtt/tesseractMageOChicken`
 
 - action 28, legality *(soft)*: `ftxi` = rejected:no_matching_move; `cwmtt` = accepted
 - action 28, legality *(soft)*: `ftxi` = rejected:no_matching_move; `notation` = accepted
 
-### `cwmtt/wide`
-
-- position 12, in_check: `ftxi` = True; `chessin5d` = False
-- position 15, in_check: `ftxi` = True; `chessin5d` = False
-- position 16, in_check: `ftxi` = True; `chessin5d` = False
-- position 17, in_check: `ftxi` = True; `chessin5d` = False
-- position 18, in_check: `ftxi` = True; `chessin5d` = False
-- position 19, in_check: `ftxi` = True; `chessin5d` = False
-- position 24, in_check: `ftxi` = True; `chessin5d` = False
-- position 28, in_check: `ftxi` = True; `chessin5d` = False
-- position 30, in_check: `ftxi` = True; `chessin5d` = False
-- position 32, in_check: `ftxi` = True; `chessin5d` = False
-- position 35, in_check: `ftxi` = True; `chessin5d` = False
-- position 36, in_check: `ftxi` = True; `chessin5d` = False
-- position 38, in_check: `ftxi` = True; `chessin5d` = False
-- position 44, in_check: `ftxi` = True; `chessin5d` = False
-- position 46, in_check: `ftxi` = True; `chessin5d` = False
-
 ### `ftxi/number1`
 
 - position 4, terminal: `ftxi` = none; `chessin5d` = checkmate
 - position 4, terminal: `ftxi:naive` = none; `chessin5d` = checkmate
-
-### `notation/1.2`
-
-- position 15, legal_actions: `ftxi` = 52; `cwmtt` = 54
-- position 15, legal_actions: `ftxi` = 52; `cwmtt:naive` = 54
-- position 15, legal_actions: `ftxi:naive` = 52; `cwmtt` = 54
-- position 15, legal_actions: `ftxi:naive` = 52; `cwmtt:naive` = 54
-
-### `notation/Bg2`
-
-- position 19, in_check: `ftxi` = True; `chessin5d` = False
-- position 21, in_check: `ftxi` = True; `chessin5d` = False
-- position 19, in_check: `ftxi:naive` = True; `chessin5d` = False
-- position 21, in_check: `ftxi:naive` = True; `chessin5d` = False
-
-### `notation/game-2`
-
-- position 43, in_check: `ftxi` = True; `chessin5d` = False
-- position 43, in_check: `ftxi:naive` = True; `chessin5d` = False

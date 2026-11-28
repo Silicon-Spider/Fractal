@@ -3,7 +3,7 @@ Fractal provenance: copied from Temporal-5D (https://github.com/Silicon-Spider/t
   source: oracles/README.md
   commit: c8a9c490bfde650466609531f8083d69513c6036
   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-  state:  unchanged: below this header the file is byte for byte the source
+  state:  changed: three passages follow ftxi's pin to v0.5.2 (Fractal G1a ruling 2); see PROVENANCE.md
 -->
 # Oracle harness
 
@@ -306,9 +306,12 @@ Three principles keep the comparison honest:
   parser's set-up - and refuses the record (`unsupported`) when that is not the
   game the record declares, or when the record uses a notation its oracle
   misreads.
-- **"Accepted" means the oracle holds the action legal.** ftxi's replay tools apply
-  and submit a recorded action without testing whether it leaves a royal
-  capturable; the driver applies ftxi's own legality test first. cwmtt's parser
+- **"Accepted" means the oracle holds the action legal.** Since v0.5.2 ftxi's
+  replay tools test that themselves - each move applied, the present tested for
+  advancement, the action submitted, the mover's royals tested for exposure - and
+  the driver follows them, adding no test of its own. (Up to v0.4.10 they
+  submitted without the last test, and the driver applied ftxi's own legality
+  test first.) cwmtt's parser
   stops, without failing, at the first thing it does not read and replays what it
   had; when that leaves the last action half read, the adapter reports the record
   as `unsupported` from there, and does not pass the fragment's fate off as a
@@ -544,22 +547,25 @@ machine.
 
 Read this with `DISAGREEMENTS.md` open; revisit it when a pin or the corpus moves.
 
-- **Check, with one visible cause.** ftxi and Chess in 5D both give a check verdict
-  at about eight hundred positions and differ at about one in ten of them - always
-  ftxi "check", Chess in 5D "no check", and always where the side to move has a
-  timeline it *may* play on but need not. Where there is no such timeline the two
-  never differ. (`selftest` re-checks both halves of that against ftxi's own
-  timeline counts, `5dtools stats`, so it cannot go stale unnoticed when a pin or
-  the corpus moves.) The two sources show why: before looking for a
-  royal capture, ftxi advances every timeline on which the side to move may play
-  (`state::phantom`), while 5d-chess-js advances only the timelines at the present
-  (`blankAction`). This is a difference in what "check" means, and it decides
-  checkmate versus stalemate when no action exists. The rulebook has settled it
-  (R1, decision H36, CHECKPOINT 1): check status passes all active boards in the
-  present, so at these positions ftxi's "check" is wrong and Chess in 5D's "no
-  check" right. An engine that follows the rulebook disagrees with ftxi at each of
-  them that it reaches; `known-divergences.toml` records ftxi's (and ftxi:naive's)
-  answers there, with R1's citation.
+- **Check: one cause, gone since ftxi's v0.5.2.** ftxi and Chess in 5D both give a
+  check verdict at about eight hundred positions. Up to ftxi's v0.4.10 they
+  differed at about one in ten of them - always ftxi "check", Chess in 5D "no
+  check", and always where the side to move had a timeline it *may* play on but
+  need not. The two sources showed why: before looking for a royal capture, ftxi
+  advanced every timeline on which the side to move may play, while 5d-chess-js
+  advances only the timelines at the present (`blankAction`). That was a
+  difference in what "check" means, and it decides checkmate versus stalemate
+  when no action exists. The rulebook settled it (R1, decision H36, CHECKPOINT 1):
+  check status passes all active boards in the present, so at those positions
+  ftxi's "check" was wrong and Chess in 5D's "no check" right. ftxi has since
+  changed its check test to pass only the active boards at the present (its
+  commit f66c4ee, in v0.5.2), and at the pin the two give the same verdict at
+  every position where both give one about the same boards. (`selftest`
+  re-checks that against the golden files, so it cannot go stale unnoticed when
+  a pin or the corpus moves.)
+  The entries `known-divergences.toml` held for ftxi's and ftxi:naive's old
+  answers, with R1's citation, were retired when the pin moved (in Fractal:
+  `docs/gates/G1a-ftxi-pin.md`).
 - **Two mate verdicts.** Chess in 5D calls two final positions checkmate where ftxi
   counts legal actions. On one of them, the record cwmtt's author named
   `chessin5d-illegal-move-example`, cwmtt counts legal actions too; the other is a
@@ -1091,11 +1097,14 @@ settles it, and a link to the upstream report - or why it is unreported. Upstrea
 a defect is reported as a bug and a disagreement with a documented rule as a
 question citing the source (register H27, CHECKPOINT 8); the agent drafts them in
 `docs/checkpoints/upstream/` and the project owner files them. None is filed yet,
-and each entry says why: the two defects ruling R7 recorded are drafted as bug
-reports, and ftxi's reading of the check test - the 147 entries R1 settles - as one
-question, `ftxi-check-test-passed-boards.md`, which asks whether the game passes
-the boards ftxi passes; if it does, the rulebook is wrong. Once a report is filed,
-its URL takes the place of `unreported: ...` in each entry it answers.
+and each entry says why. The two defects ruling R7 recorded were drafted as bug
+reports, and ftxi's reading of the check test - the 147 entries R1 settled - as one
+question, `ftxi-check-test-passed-boards.md`, which asked whether the game passes
+the boards ftxi passed. ftxi has since changed both of its own: the check test,
+and the double step that was its defect under R7. Those entries were retired when
+its pin moved to v0.5.2, and their drafts have nothing left to ask. ftxi's set-up
+of Standard - Half Reflected (KD-0171, KD-0172) is not drafted yet. Once a report
+is filed, its URL takes the place of `unreported: ...` in each entry it answers.
 
 The rulebook is `docs/rules/README.md` (decision H38), and it is pinned:
 `gate.toml` `[rulebook]` holds the SHA-256 of its text (CRLF folded to LF), and

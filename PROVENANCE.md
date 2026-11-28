@@ -72,6 +72,25 @@ Recorded in `docs/gates/G1a-rules-review.md`, with the tests and measurements be
 | `engine/src/search.cpp` | Counting successors, a kept action's canonical text is written when a second action reaches its state, not for every state; its bytes are counted by an estimate. `PositionSet::insert` takes its state by value. | `243cba1014489b08ec53aa9253360d8b4a7a7e1c286cd8d40f6aacc430899e46` |
 | `engine/src/search_internal.hpp` | `PositionSet::insert` takes its state by value; a comment on the late text. | `23cf3c87865e5f4f1dcaf94e224461a6ad9703f6b868f99ecf1096cd9c862660` |
 
+### The ftxi pin change (G1a ruling 2)
+
+Recorded in `docs/gates/G1a-ftxi-pin.md`. ftxi moved from v0.4.10 to v0.5.2 by `CONTRIBUTING.md`'s procedure, as a change of its own. Nothing outside `oracles/` changed with it but this file. For a record-only file the hash is of the whole file.
+
+| File | Change | SHA-256 now |
+| --- | --- | --- |
+| `oracles/oracles.lock.toml` | ftxi's `commit`, `tree`, `ref` and `committed` are v0.5.2's (`e6cf824`). Its first note is rewritten for the new pin, and a note is added on the 795 games under its `test/pgn/online`. | `c25f66c9f29956da9f99adf8f5039dcb1c7b3c5a8c85c431edb847f56d1c70ca` |
+| `oracles/drivers/ftxi/ftxi_driver.cpp` | Built against v0.5.2's interface. An action is applied and submitted as the oracle's own replay tool does it at that tag, with the oracle's test for an exposed royal in place of the driver's own. Turns are read through its `turn` class, and a board is asked for at the record's board size. The adapted part follows `tools/position_tools.cpp` at v0.5.2, under the same licence notice. | `1a947155ae64e9d154c7b489f2c3ae1d6533a01366175b5d8d30b54da815115e` |
+| `oracles/known-divergences.toml` | 151 ftxi entries removed that both gate tiers reported as no longer occurring. The ten that still occur carry the new pin. KD-0171 and KD-0172 added: ftxi's set-up of Standard - Half Reflected. A paragraph of the preamble records all of it. | `6b0359c7a8277a0486fd471e829d0300518cdd1dbf8349577ad16459a4665625` |
+| `oracles/golden/ftxi.json` | Recorded again at the new pin by `golden --write --repeat 2 --jobs 8 --source ftxi --source ftxi:naive`. | `f8ab19f820633564a116d555f9694fe0b1536ce0aac121f63c892cbb18840836` |
+| `oracles/golden/ftxi.cost.json` | Written by the same recording. | `686ae4fcfae138df4b75eba7ce52f7b2c649f50c71d7593ca513372d9f12aad7` |
+| `oracles/golden/ftxi-naive.json` | Written by the same recording. | `e4fe96598066285aac69a58804dc7fb9c749b6146a8df9a76ab8d24677838d17` |
+| `oracles/golden/ftxi-naive.cost.json` | Written by the same recording. | `0c30d911169b6de74d74f5721c093a03f9134ead865c9874e750f05cc60454cc` |
+| `oracles/golden/calibration.json` | The calibration probe, whose source is `ftxi:naive`, timed again by the same recording. | `6d45c293adbf3651bca0f4f5c8057a45c6cd21925473f8904f33df9203e2d505` |
+| `oracles/golden/MANIFEST` | Written by the same recording. | `129ee87cfa8aaefce3f4fbe20d1c87ae32b825f7ed11ed804ea48f5924cb447f` |
+| `oracles/DISAGREEMENTS.md` | Rendered again from the golden files by the same recording. | `f3e63e4abe49ecd80c0a32acd1663f6eae4e95dcbdc955bfb9fbc4589c5b58a3` |
+| `oracles/README.md` | Three passages follow the pin: what "accepted" means for ftxi, now that its own tools test royal exposure; the check disagreement between ftxi and Chess in 5D, gone since v0.5.2; and the upstream drafts for the retired entries. | `ddbfac14b76bb27594b16752912efe8bd794384e6ff0a454fd2d3625576af17d` |
+| `oracles/tests/test_repository.py` | `test_every_check_disagreement_is_at_an_optional_timeline` asserted that ftxi and Chess in 5D disagree on check, and failed with "update oracles/README.md" once they no longer did. It is replaced by `test_ftxi_and_chessin5d_give_the_same_check_verdicts`, which holds the manual's new statement: no disagreement at the positions where both give a verdict, and more than 500 such positions. The two imports only the old test used are removed. | `9de59fb0796c452598969c1a00932f8f2fac11579333b294aafa9f307a527952` |
+
 ## Fractal's own files
 
 Files in directories that hold copied files, written for Fractal and not copied from anywhere. `python tools/check_provenance.py` fails on any other file there without a row in this file. A row may end in `/**` to name a whole directory.
@@ -324,7 +343,7 @@ The copied harness checks that this block matches its lock file and corpus manif
 
 | Id | Upstream | Pinned commit | Licence | Role | CI tier |
 |---|---|---|---|---|---|
-| `ftxi` | [ftxi/5dchess_engine](https://github.com/ftxi/5dchess_engine) | `2ea9f1b82880f08faa9400d1ac20b20102604187` (v0.4.10, 2026-09-15) | BSD-2-Clause | oracle | commit |
+| `ftxi` | [ftxi/5dchess_engine](https://github.com/ftxi/5dchess_engine) | `e6cf82403c3580ebad4b385f24d610a87438d322` (v0.5.2, 2026-10-20) | BSD-2-Clause | oracle | commit |
 | `cwmtt` | [penteract/cwmtt](https://github.com/penteract/cwmtt) | `9632e9969dd455c6e3d6c27c57c1936c251d7e97` (master, 2026-05-18) | GPL-3.0 (LICENSE file); cwmtt.cabal declares BSD3 - treated as GPL-3.0 until upstream resolves the conflict | oracle | nightly |
 | `chessin5d` | [5d-chess/5d-chess-js](https://gitlab.com/5d-chess/5d-chess-js.git) | `ee403c80e8c132fc4d168f5b99ddd9b8fe5cc17b` (master, 2022-06-15) | AGPL-3.0-or-later | oracle | nightly |
 | `kairos` | [FirePlank/5d-chess-engine](https://github.com/FirePlank/5d-chess-engine) | `8bfea4a6e8d1cec2cc27cafa387b1bd78c0c94e0` (main, 2026-10-23) | GPL-3.0-only (LICENSE file: GitHub's GPL-3.0 template text; Cargo.toml: GPL-3.0-only); NOTICE: parts derived from ftxi/5dchess_engine under BSD-2-Clause | oracle | nightly |
@@ -336,7 +355,8 @@ The copied harness checks that this block matches its lock file and corpus manif
 - **How it is used:** Built from an export of the pinned commit. Queried through oracles/drivers/ftxi (links its core library; part of that driver is adapted from its tools/position_tools.cpp and carries its licence notice) and cross-checked against its stock 5dtools CLI.
 - **Where:** `oracles/third_party/ftxi` (submodule `oracle-ftxi`)
 - **Licence file:** `LICENSE`, SHA-256 `c36ba7d9587abbf62264a9e096f35b9c9c57805e6a4ae169cfe6e03de5b79e5f`
-- Pinned at the latest release tag rather than main: the eight commits after v0.4.10 rework the hypercuboid hot path and have not been released.
+- Pinned at the release tag v0.5.2 (Fractal G1a ruling 2, 2026-11-27), for three rules fixes after v0.4.10: 18df77d (pawn and brawn moves for Black), f66c4ee (which boards the check test passes) and 52469a2 (royal safety at submission, now inside the oracle's own submit). Its main branch was 25 commits further on that day, at 664277d.
+- v0.5.2 adds test/pgn/online: 795 games, 739 of them t0database's (MIT) and 56 from a collection whose README states no licence. None is in the corpus.
 - Its own submodules (extern/pybind11, extern/client) are not needed and are never initialised; extern/client is declared with an SSH URL, so never update submodules recursively.
 - Its test/pgn/README.txt lists twelve of its sixteen test records as taken from cwmtt, under the GPL-3.0. A thirteenth (100timelines) is cwmtt's 100_timelines again under another name, and is left out of the corpus; the other three are its own. All are read in place through the corpus manifest, never copied.
 - At the pin a coordinate packs into 32 bits: 12 for the timeline, 12 for the turn, 4 each for rank and file (src/misc/vec4.h), so timelines and turns each span -2048..2047. The register's 'its 8-bit coordinate packing' (H24) describes an earlier tree.

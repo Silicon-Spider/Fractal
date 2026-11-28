@@ -2,16 +2,14 @@
 #   source: oracles/tests/test_repository.py
 #   commit: c8a9c490bfde650466609531f8083d69513c6036
 #   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-#   state:  unchanged: below this header the file is byte for byte the source
+#   state:  changed: the check-disagreement test follows ftxi's pin to v0.5.2 (Fractal G1a ruling 2); see PROVENANCE.md
 """Checks against this repository itself: its configuration, and (when the
 oracles have been built) the oracles' answers to questions with known answers."""
 
-import json
 import unittest
 
 from oracle_harness import baseline, build, config, corpus, gate, gitutil, lockfile, paths, snapshot
 from oracle_harness.adapters import ORACLE_SOURCES, PARSE_ONLY_SOURCES, RunOptions, make_source
-from oracle_harness.util import run
 from support import golden_files_predate_this_schema
 
 
@@ -259,34 +257,39 @@ class LiveOracleTests(unittest.TestCase):
         refused = self.ask("ftxi", ending("*"))
         self.assertEqual((refused.status, refused.reason, refused.positions), ("unsupported", "parse_error", []))
 
-    def test_every_check_disagreement_is_at_an_optional_timeline(self):
-        # oracles/README.md explains the check disagreements between ftxi and
-        # Chess in 5D by timelines the side to move may play on but need not.
-        # This keeps that explanation honest when a pin or the corpus moves.
+    def test_ftxi_and_chessin5d_give_the_same_check_verdicts(self):
+        # oracles/README.md says that since ftxi's v0.5.2 ftxi and Chess in 5D give
+        # the same check verdict wherever both give one: ftxi's check test now
+        # passes only the active boards at the present, as Chess in 5D's does and
+        # as R1 rules. Up to v0.4.10 they differed at about one position in ten,
+        # each of them one where the side to move had a timeline it may play on
+        # but need not, and this test held the manual to that explanation.
+        # This keeps the statement honest when a pin or the corpus moves.
         if not _built("ftxi"):
             self.skipTest("ftxi is not built")
         for source in ("ftxi", "chessin5d"):
             stale = golden_files_predate_this_schema(source)
             if stale:
                 self.skipTest(stale)
-        from oracle_harness import golden
+        from oracle_harness import golden, observations
 
-        tools = build.load(self.lock.pin("ftxi")).artifact("tools")
         ftxi, chessin5d = golden.load("ftxi"), golden.load("chessin5d")
-        disagreements = [
-            (record_id, mine.index, mine.in_check, theirs.in_check)
-            for record_id, report in ftxi.observations.items() if record_id in chessin5d.observations
-            for mine, theirs in zip(report.positions, chessin5d.observations[record_id].positions, strict=False)
-            if None not in (mine.in_check, theirs.in_check) and mine.in_check != theirs.in_check
-        ]
-        self.assertTrue(disagreements, "no check disagreement is left: update oracles/README.md")
-        for record_id, index, mine, theirs in disagreements:
-            self.assertEqual((mine, theirs), (True, False), (record_id, index))
-            turn = "0" if index == 0 else f"{(index + 1) // 2}{'w' if index % 2 else 'b'}"
-            data = corpus.read(self.records[record_id], self.lock)
-            done = run([tools, "stats", "--at", turn, "--format", "json"], stdin=data, timeout=60)
-            optional = json.loads(done.out_text())["timelines"]["optional"]
-            self.assertGreater(optional, 0, (record_id, index))
+        both = []
+        for record_id, report in ftxi.observations.items():
+            other = chessin5d.observations.get(record_id)
+            if other is None:
+                continue
+            # Only while the two hold the same boards: past a placement divergence
+            # they answer about different positions (ftxi's Half Reflected set-up).
+            parted = observations.first_placement_divergence(report, other)
+            for mine, theirs in list(zip(report.positions, other.positions, strict=False))[:parted]:
+                if None not in (mine.in_check, theirs.in_check):
+                    both.append((record_id, mine.index, mine.in_check, theirs.in_check))
+        # Not an empty comparison: both give a verdict at hundreds of positions, some of them check.
+        self.assertGreater(len(both), 500)
+        self.assertTrue(any(mine for _, _, mine, _ in both))
+        disagreements = [item for item in both if item[2] != item[3]]
+        self.assertEqual(disagreements, [], "ftxi and Chess in 5D disagree on check again: update oracles/README.md")
 
     def test_cwmtt_layouts_at_the_pin(self):
         if not _built("cwmtt"):
