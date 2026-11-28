@@ -1,1 +1,3 @@
+test_capi_game.cpp	11	0
 test_legality.cpp	8	0
+test_turn_state.cpp	2	0

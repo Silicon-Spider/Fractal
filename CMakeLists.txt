@@ -193,10 +193,17 @@ target_compile_definitions(t5d-tests PRIVATE
 # The copied runner and framework (engine/tests/test_main.cpp, test_framework.hpp),
 # unchanged, with test sources written for Fractal in tests/. A second runner, so the
 # copied suite stays exactly the copied suite.
+#
+# test_capi_game and test_turn_state cover the copied-code cases of the two copied
+# test files of those names, which cannot be built (above). They need the C API's
+# source, linked in statically as the copied suite links it.
 
 add_executable(fractal-tests
   engine/tests/test_main.cpp
-  tests/test_legality.cpp)
+  tests/test_capi_game.cpp
+  tests/test_legality.cpp
+  tests/test_turn_state.cpp
+  engine/src/capi.cpp)
 target_include_directories(fractal-tests PRIVATE ${T5D_ENGINE_DIR}/tests)
 target_link_libraries(fractal-tests PRIVATE t5d_core t5d_tools)
 
