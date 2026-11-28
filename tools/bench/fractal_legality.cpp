@@ -200,8 +200,25 @@ struct Options {
   bool pin = true;
   bool pool = false;
   bool verify = false;
+  bool ceilings = false;
   std::uint64_t turn_nodes = 2'000'000;
 };
+
+// ---- the allocation ceilings (spec 3.3 items 6 and 7) -----------------------------------------
+//
+// The heap allocations a turn generator may make on t0database turn starts under 50
+// boards, per position: constructed and destroyed (`build`), and constructed with up
+// to eight turns taken (`K turns`). --ceilings fails the run above either. They are a
+// ratchet: each is lowered, on purpose and with the reason in the gate report, when a
+// change to the generator lands, towards the spec's target of 18 and 51. The counts
+// are the program's own (its operator new), so they do not depend on the machine.
+//
+//   as copied           181    519
+//   G1a, item 6a         37    318   (docs/MEASUREMENTS.md entry 3)
+//   G1a, item 7       18.24 286.36   (entry 4): the ceilings below, with room for a
+//                                     standard library that grows a vector otherwise
+constexpr double kBuildCeiling = 19.0;
+constexpr double kTurnsCeiling = 290.0;
 
 void usage(std::FILE* f) {
   std::fputs(
@@ -214,7 +231,9 @@ void usage(std::FILE* f) {
       "  --json FILE       write every figure as JSON\n"
       "  --no-pin          do not pin the thread to a logical processor\n"
       "  --pool            experiment: recycle freed blocks of up to 512 bytes (spec 3.3 item 1)\n"
-      "  --verify          time nothing: hold the engine's answers equal by second routes\n",
+      "  --verify          time nothing: hold the engine's answers equal by second routes\n"
+      "  --ceilings        fail if the generator allocates more than its ceilings on turn\n"
+      "                    starts under 50 boards (needs the default --turns, --scorer and --stride)\n",
       f);
 }
 
@@ -258,11 +277,17 @@ Options parse_options(int argc, char** argv) {
       o.pool = true;
     } else if (a == "--verify") {
       o.verify = true;
+    } else if (a == "--ceilings") {
+      o.ceilings = true;
     } else {
       throw std::invalid_argument("unknown option '" + std::string(a) + "' (--help lists them)");
     }
   }
   if (o.records.empty()) throw std::invalid_argument("--records DIR is required");
+  if (o.ceilings && (o.verify || o.pool || !o.bands || o.turns != 8 || o.stride != 1)) {
+    throw std::invalid_argument("--ceilings: the ceilings are for the default --turns, --scorer and --stride, "
+                                "without --pool or --verify");
+  }
   return o;
 }
 
@@ -745,6 +770,33 @@ int verify(const std::vector<Bucket>& buckets, const Options& opt) {
   return differences == 0 ? 0 : 1;
 }
 
+// --ceilings: the generator's allocations on the first bucket against the ratchet.
+int check_ceilings(const std::vector<BucketResult>& results) {
+  const BucketResult* under_50 = nullptr;
+  for (const BucketResult& r : results) {
+    if (r.name == "<50") under_50 = &r;
+  }
+  if (under_50 == nullptr || under_50->positions == 0) {
+    std::printf("ceilings: FAILED - no turn start under 50 boards was measured\n");
+    return 1;
+  }
+  int failures = 0;
+  const auto hold = [&](const char* row_name, double ceiling) {
+    double measured = std::nan("");
+    for (const Row& row : under_50->rows) {
+      if (row.name == row_name) measured = row.allocations;
+    }
+    // A count that was not measured fails too: NaN is not at or under any ceiling.
+    const bool ok = measured <= ceiling;
+    std::printf("ceilings: %-8s %8.2f allocations per position, ceiling %.2f: %s\n", row_name, measured, ceiling,
+                ok ? "ok" : "FAILED");
+    if (!ok) ++failures;
+  };
+  hold("build", kBuildCeiling);
+  hold("K turns", kTurnsCeiling);
+  return failures == 0 ? 0 : 1;
+}
+
 int run(int argc, char** argv) {
   const Options opt = parse_options(argc, argv);
   if (!std::filesystem::is_directory(opt.records)) {
@@ -762,7 +814,7 @@ int run(int argc, char** argv) {
   }
   print(results, opt);
   if (!opt.json.empty()) write_json(results, opt);
-  return 0;
+  return opt.ceilings ? check_ceilings(results) : 0;
 }
 
 }  // namespace

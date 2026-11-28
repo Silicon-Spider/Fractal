@@ -61,10 +61,11 @@ jobs:
         run: $PY tools/check_provenance.py
       - name: Spec and register agree
         run: $PY tools/check_docs.py
-      - name: Legality by second routes, on every t0database turn start
+      - name: Legality by second routes, and the generator's allocation ceilings, on every t0database turn start
         run: |
           $PY -I data/t0database/to_5dpgn.py build/t0db
           build/engine/fractal-legality --records build/t0db --verify --no-pin
+          build/engine/fractal-legality --records build/t0db --ceilings --passes 1 --no-pin
       - name: Near-mate bench smoke test
         run: build/engine/fractal-bench --quick --sections mate --no-pin
       - name: Harness self-test
@@ -132,10 +133,11 @@ jobs:
         run: $PY tools/check_provenance.py
       - name: Spec and register agree
         run: $PY tools/check_docs.py
-      - name: Legality by second routes, on every t0database turn start
+      - name: Legality by second routes, and the generator's allocation ceilings, on every t0database turn start
         run: |
           $PY -I data/t0database/to_5dpgn.py build/t0db
           build/engine/fractal-legality --records build/t0db --verify --no-pin
+          build/engine/fractal-legality --records build/t0db --ceilings --passes 1 --no-pin
       - name: Near-mate bench smoke test
         run: build/engine/fractal-bench --quick --sections mate --no-pin
       - name: Harness self-test

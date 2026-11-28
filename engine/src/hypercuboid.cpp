@@ -2,7 +2,7 @@
 //   source: engine/src/hypercuboid.cpp
 //   commit: c8a9c490bfde650466609531f8083d69513c6036
 //   copied: 2026-11-08 (Fractal spec 3.1 and 3.4; decisions NR1, NR5)
-//   state:  changed: construction reads each candidate's changes from move_edits instead of applying it to a copy; two allocations a turn removed (spec 3.3 item 6); see PROVENANCE.md
+//   state:  changed: construction reads each candidate's changes from move_edits instead of applying it to a copy; two allocations a turn removed (spec 3.3 item 6); move buffers reserved once and reused within a generator (item 7); see PROVENANCE.md
 // The hypercuboid detector (see t5d/search.hpp). Its design is the engine
 // README's "The hypercuboid detector: design", implemented from that note.
 //
@@ -593,10 +593,17 @@ class Hyper {
     RuleOptions relaxed = rules_;
     relaxed.castling_on_optional_boards = true;
     relaxed.inactive_history_is_destination = true;
-    MoveList list;
+    // Fractal (spec 3.3 item 7): the candidates are listed in the generator's one move
+    // buffer, reserved once - realisation's pseudo-legality test reuses it - and the
+    // move table and the axis's values are reserved from the list before they are
+    // filled: a move adds at most two of each (a jump, and its J6 twin).
+    MoveList& list = scratch_;
+    list.reserve(kReservedMoves);
     for (std::size_t i = 0; i < axes_.size(); ++i) {
       list.clear();
       append_moves_of(mv, relaxed, mover_, axes_[i].timeline, list, s0_.inactive_timelines());
+      moves_.reserve(moves_.size() + 2 * list.size());
+      axes_[i].values.reserve(axes_[i].values.size() + 2 * list.size());
       for (const Move& m : list) {
         if (!add_move(static_cast<int>(i), m)) return false;
       }
@@ -1646,7 +1653,8 @@ class Hyper {
     const Plan p = plan_of(x);
     std::vector<char> plain_done(p.plain.size(), 0);
     std::vector<char> branch_done(p.branch_axes.size(), 0);
-    std::vector<Move> seq;
+    std::vector<Move>& seq = seq_;
+    seq.clear();
     bool go_on = true;
     ordered_step(x, p, s0_, plain_done, branch_done, p.branch_axes.size(), seq, visit, stopped,
                  go_on);
@@ -1800,7 +1808,8 @@ class Hyper {
   void realise_free(const std::vector<int>& x, const Visit& visit, bool& stopped) {
     const Plan p = plan_of(x);
     GameState s = s0_;
-    std::vector<Move> seq;
+    std::vector<Move>& seq = seq_;
+    seq.clear();
     for (const int q : p.plain) {
       if (!play(s, moves_[static_cast<std::size_t>(q)], seq, stopped)) return;
     }
@@ -2106,7 +2115,14 @@ class Hyper {
   bool reactivation_threat_ = false;
   int max_last_active_ = 0;
   std::size_t words_ = 0;
+  // Fractal (spec 3.3 item 7): the generator's move buffers, kept for its life. scratch_
+  // lists the candidates at construction and is the pseudo-legality test's scratch at
+  // realisation; seq_ is the sequence a point's realisation plays. Neither is in use
+  // by two callers at once: construction ends before realisation begins, and a point
+  // is realised to its end before the next.
+  static constexpr std::size_t kReservedMoves = 256;
   MoveList scratch_;
+  std::vector<Move> seq_;
   Abstract abstract_;
   // Best-first generation only (t5d/turngen.hpp): each value's score, the
   // queue of boxes, and the score of the point judged last.

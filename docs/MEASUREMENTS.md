@@ -273,3 +273,58 @@ Notes:
 - `fractal-legality --verify`, 2.3 s: 22,761 positions; 604,020 comparisons of the set scan with the line scan, 3,198 of them with a capture; 3,184 positions in check; 256,488 generated turns replayed through the state machine; 597 positions with no turn, 596 checkmate and 1 stalemate by the detector; none undecided within 2,000,000 nodes; 0 differences. The engine as copied gives the same line, figure for figure.
 - The copied tests: 366 pass, 3 skipped, 21 s. Fractal's own: 8 pass, 1.3 s.
 - The harness: `selftest` 687 run, 5 skipped (4 need Kairos built, which it never is; 1 needs symlinks), 466 s; `gate --tier commit` 33 s; `gate --tier nightly` 7 minutes.
+
+## 4. The turn generator's move buffers, reserved once and reused: item 7 (2026-11-28)
+
+The fourth change to copied code (spec §3.3 item 7; `docs/gates/G1a-item-7.md`), measured against the engine just before it with the same tool on the same day.
+
+- **Machine:** the desktop of entry 1. **It was not quiet.** Two jobs of other projects were running on about six of its 24 logical processors, and the counter of entry 1 read 33% busy just before the runs. One thread, pinned, priority above normal.
+- **Build:** GNU g++ 16.2.0 (MSYS2 ucrt64), Release, `-O2 -DNDEBUG`, statically linked.
+- **Commit:** *before* is `8e82eb3`, whose engine is entry 3's state C. *After* is the commit that adds this entry. The two binaries differ only in `engine/src/hypercuboid.cpp`.
+- **Commands:**
+
+  ```
+  fractal-legality --records build/t0db --passes 5 --json FILE        (each binary, twice, in the order before, after, before, after)
+  python -I tools/bench/legality_table.py LABEL=FILE ...
+  fractal-legality --records build/t0db --ceilings --passes 1 --no-pin
+  fractal-legality --records build/t0db --verify
+  ```
+
+- **What changed.** The generator lists its candidate moves in one buffer that it keeps, reserved once at 256 moves, and realisation's pseudo-legality test reuses that buffer. The move table and each axis's values are reserved from the candidate list before they are filled. The sequence a point's realisation plays is a member, cleared for each point.
+
+Nanoseconds per position, with heap allocations per position in brackets, as in entry 3.
+
+| Under 50 boards (19,410 positions) | Before, run 1 | After, run 1 | Before, run 2 | After, run 2 |
+| --- | ---: | ---: | ---: | ---: |
+| build | 6,022 (36.9) | 5,241 (18.2) | 5,677 (36.9) | 5,486 (18.2) |
+| first | 12,876 (95.2) | 11,105 (72.2) | 11,602 (95.2) | 11,712 (72.2) |
+| K turns | 30,564 (318.2) | 29,928 (286.4) | 31,101 (318.2) | 29,786 (286.4) |
+| First turn after the build | 6,854 (58.3) | 5,863 (53.9) | 5,925 (58.3) | 6,227 (53.9) |
+| Each further turn | 2,668 (33.6) | 2,839 (32.3) | 2,941 (33.6) | 2,726 (32.3) |
+
+| 50-99 boards (3,162 positions) | Before, run 1 | After, run 1 | Before, run 2 | After, run 2 |
+| --- | ---: | ---: | ---: | ---: |
+| build | 9,595 (47.6) | 9,297 (25.6) | 10,204 (47.6) | 9,172 (25.6) |
+| first | 27,399 (182.9) | 26,722 (154.7) | 27,479 (182.9) | 27,664 (154.7) |
+| K turns | 80,279 (736.0) | 81,151 (697.9) | 80,737 (736.0) | 82,018 (697.9) |
+| Each further turn | 8,454 (88.4) | 8,702 (86.9) | 8,515 (88.4) | 8,690 (86.9) |
+
+| 100-199 boards (189 positions) | Before, run 1 | After, run 1 | Before, run 2 | After, run 2 |
+| --- | ---: | ---: | ---: | ---: |
+| build | 14,673 (65.6) | 13,831 (38.9) | 14,395 (65.6) | 13,847 (38.9) |
+| first | 45,359 (275.8) | 44,231 (241.8) | 44,107 (275.8) | 45,537 (241.8) |
+| K turns | 144,835 (1,111.3) | 145,533 (1,064.2) | 141,676 (1,111.3) | 144,547 (1,064.2) |
+| Each further turn | 15,589 (130.9) | 15,876 (128.9) | 15,291 (130.9) | 15,516 (128.9) |
+
+Notes:
+
+- **The allocation counts are exact,** and the same in both runs: they are the program's own count and do not depend on the machine. Under 50 boards construction goes from 36.88 to 18.24 allocations, and a node that builds a generator and takes eight turns from 318.16 to 286.36. Against the engine as copied that is 181 to 18.24 and 519 to 286.36. The targets are 18 and 51.
+- **The times are not a clean measurement,** because of the load. What they support: construction is faster, by 3% to 13% in every pair of runs; the whole node under 50 boards is 2% to 4% faster; and at 50 boards and more the node reads 0.5% to 2% slower in all four pairs. That is inside the spread between runs here, but it has the same sign each time, so it is not settled. The before runs here read 8% to 10% above entry 3's column C on *K turns* under 50 boards, which is the load. The runs are to be repeated when the machine is quiet, and the result appended here.
+- **The generator did the same work:** the same nodes and the same points judged per bucket in all four runs, and no successor failed the scan.
+- **Before, by another reading:** the before binary's counts are entry 3's column C to the last digit (36.9, 95.2 and 318.2 under 50 boards).
+
+Checks:
+
+- `fractal-legality --ceilings`: build 18.24 against a ceiling of 19, *K turns* 286.36 against 290. Run on the engine before the change, it fails on both (36.88 and 318.16).
+- `fractal-legality --verify`, with the default eight turns: 22,761 positions; 435,884 comparisons of the set scan with the line scan, 3,195 of them with a capture; 3,184 positions in check; 172,420 generated turns replayed through the state machine; 597 positions with no turn, 596 checkmate and 1 stalemate; no difference.
+- The copied tests: 366 pass, 3 skipped. Fractal's own: 23 pass. The pins of `tests/test_legality.cpp` did not move.
