@@ -13,7 +13,7 @@ Nothing in the engine, its tests, its tools or its trainer changed. The change t
 - **One new disagreement, with two entries.** v0.5.2 reads Standard - Half Reflected, which v0.4.10 did not, and sets it up with White's king and queen exchanged. The rulebook, the notation specification's example game and the other three oracles exchange Black's. Half Reflected is a gen-1 variant.
 - **The first recording was thrown away.** My port of the driver wrote boards smaller than 8×8 wrongly, and seven records came back as errors. The recording's own loss notice showed it. The driver was fixed and the recording made again.
 - **The harness manual and one of its self-tests follow the pin.** That self-test asserted that ftxi and Chess in 5D disagree on check, and failed once they no longer did. It now asserts that they agree.
-- **Not yet done:** the second half of ruling 2, the commit and nightly tiers again on items A to C. That is the next step, and its own report.
+- **Both tiers again on items A to C: nothing of the engine's moved.** The engine as copied and the engine after each of items A, B and C pass both tiers at the new pin, and give the same answer at every position of every record (the last section before the proposals).
 
 ## The procedure, step by step
 
@@ -185,6 +185,32 @@ The two runs that named the stale entries came before these, at 19:23 and 19:32.
 - **What they are.** 775 Standard - Turn Zero, 15 Standard - Defended Pawn, 3 Standard - Two Timelines and 2 custom positions.
 - **Where they come from.** 739 are t0database's games, converted by ftxi from the same `Data.csv` Fractal holds (the same SHA-256), under t0database's MIT licence. 56 are from a second collection whose README names its collector and states no licence.
 - **Why it matters.** The commit tier gates no ruleset, and no gen-1 variant but Half Reflected is gated at all (finding 3 of `G1a-rules-review.md`; spec §3.5's open item). These are games of the variants gen 1 plays.
+
+## Both tiers again on items A to C
+
+The second half of ruling 2: with the pin moved and committed (`ee15da6`), the commit and nightly tiers were run again on the copied engine at each step of G1a's first part, and the question is what moved.
+
+**How.** The gate asks the engine through its adapter, `t5d-gate`. Four adapters were on hand, each built on 27 November from a worktree at one commit, in Release mode with g++ 16.2.0. Each in turn took the place of the tree's adapter, both tiers ran, and the tree's adapter was put back (its hash is the same before and after).
+
+| Engine | Commit | Commit tier | Nightly tier |
+| --- | --- | --- | --- |
+| As copied, with the safety net | `badc73c` | Passed, 0 findings, 0 declined | Passed, 0 findings, 0 declined, two rulesets gated |
+| After item A, the set scan | `ea9419e` | The same | The same |
+| After item B, `move_edits` | `629e898` | The same | The same |
+| After item C, fewer allocations | `2604d61` | The same | The same |
+
+The two rulesets are Standard - Half Reflected and Standard - Reversed Royalty, as before the pin moved.
+
+**What moved: nothing of the engine's.**
+
+- **Across the items.** Each run's report holds what the engine said about each record. Leaving out the times, the four engines give the same status, the same count of accepted actions and the same values at all 1,017 positions of the 41 records, in both tiers. The tree's own runs, reported above, give the same again. The engine has not changed since item C.
+- **Against the runs before the pin moved** (17 and 22 November, `G1a-rules-review.md`). Those passed too, with the same two rulesets gated. What differs is on ftxi's side:
+  - Before, an engine that follows R1 differed from ftxi on check at the 92 positions it reaches, and from `ftxi:naive` at 55, each excused by an entry. Now it agrees with ftxi at every one of them and no entry is needed.
+  - The same goes for the two counts on `notation/1.2`.
+  - On `cwmtt/test1` ftxi used to read nothing. Now its set-up differs from the engine's, under KD-0171 and KD-0172, and nothing of ftxi's on that record is compared.
+- **So items A to C stand as they did.** None of them changes an answer at the new pin, as none did at the old one.
+
+The eight runs' output and reports are under `build/reports/g1a/pin-v0.5.2/` on the desktop, which git ignores.
 
 ## Proposed doc changes
 
