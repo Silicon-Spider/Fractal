@@ -2,7 +2,7 @@
 
 1 November 2026 · Fergus
 
-109 decisions (68 committed, 41 provisional), plus 34 arms, 13 refusals and 9 predictions, for the [design spec](SPEC.md). Revised on 15 November 2026 after G0: IDs kept their meaning, new rows took new IDs, and `docs/gates/G0-rulings.md` gives the evidence for every change. Revised again on 27 November 2026 on the rulings in `docs/gates/G1a-rulings.md`, and a third time on 28 November 2026 on the rulings in `docs/gates/ideas-2026-11-27-rulings.md`, in the same way. (The rewrite of 7 November renumbered the IDs, so references older than that don't carry over.)
+109 decisions (68 committed, 41 provisional), plus 34 arms, 13 refusals and 9 predictions, for the [design spec](SPEC.md). Revised on 15 November 2026 after G0: IDs kept their meaning, new rows took new IDs, and `docs/gates/G0-rulings.md` gives the evidence for every change. Revised again on 27 November 2026 on the rulings in `docs/gates/G1a-rulings.md`, a third time on 28 November 2026 on the rulings in `docs/gates/ideas-2026-11-27-rulings.md`, and a fourth time the same day on the rulings in `docs/gates/G1a-rulings-2026-11-28.md`, in the same way. (The rewrite of 7 November renumbered the IDs, so references older than that don't carry over.)
 
 - **Status:** committed rows hold unless a gate or test match overturns them; provisional rows wait on the gate named.
 - **Class:** committed-class decisions get expensive to change once code depends on them; retrofittable ones can change later.
@@ -231,12 +231,12 @@ Nine predictions, written down before their tests run.
 
 ## Open items
 
-- **Phase 1, part a** continues (spec §14.2): ftxi's pin bump and both tiers again, the two tests of §3.3 item 8, the tests of §3.6 still owed, then items 7, 6b to 6d and 1 (NR3, NR6). G1a has not passed, and pull request #2 stays open until it does.
+- **Phase 1, part a** continues (spec §14.2): items 7, 6b to 6d and 1, with the allocation test of §3.3 item 6 (NR3). G1a has not passed, and pull request #2 stays open until it does.
 - **Branch protection on `main`** is not yet switched on; Fergus sets it (spec §3.6, G1a ruling 6).
-- **The ftxi oracle pin** moves to v0.5.2, past ftxi's 14 October 2026 change to the check rule that R1 uses, as a change of its own (G1a ruling 2, NR6).
+- **ftxi's set-up of Standard - Half Reflected** exchanges White's king and queen where the rulebook exchanges Black's (KD-0171, KD-0172), so ftxi checks nothing on that gen-1 variant. Fergus files the question with ftxi's author (ruling of 28 November 2026, NR6).
 - **The copy check of NR8,** before part b's first commit.
 - **Unused copied files** stay until G1 closes, then go in one recorded change (spec §3.1, G1a ruling 5).
-- **The oracle corpus:** even the nightly tier gates only Half Reflected among the gen-1 variants, and Defended Pawn has no record; grow the corpus from t0database (NR6).
+- **The oracle corpus:** even the nightly tier gates only Half Reflected among the gen-1 variants, and Defended Pawn has no record; grow the corpus from t0database (NR6). First, as a change of its own: the 739 t0database games in ftxi's checkout, into the nightly tier (ruling of 28 November 2026).
 - **Mate certificates:** the copied certificate module cannot build without the prover, so NM5 uses the detector; decide in Phase 3 whether to write a Fractal-owned checker.
 - **Generator budget size,** set at G1 from positions in Fractal's own search trees (NT5).
 - **Bootstrap values for the six kinds outside gen 1** (NN8).
@@ -245,7 +245,7 @@ Nine predictions, written down before their tests run.
 - **NX2's list of counts,** written before G3.
 - **Auxiliary targets:** which to train first (NL8).
 - **Browser build:** WASM through Emscripten, threads, and the net budget (NE3).
-- **Fergus's living docs:** all three revisions were made in the repository, so they need the same changes before the next export.
+- **Fergus's living docs:** all four revisions were made in the repository, so they need the same changes before the next export.
 
 ## Reversals log
 
